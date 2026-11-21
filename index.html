@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.5';
+const APP_VERSION = '1.5.1';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -702,7 +702,6 @@ const ICON = {
   admin:'<circle cx="6" cy="5.3" r="2.4"/><path d="M1.8 13.5c.4-2.4 2.1-3.8 4.2-3.8s3.8 1.4 4.2 3.8M11 3.2a2.2 2.2 0 0 1 0 4.2M12.2 9.9c1.3.5 2 1.7 2.2 3.6"/>',
   backup:'<path d="M3 4.5C3 3.1 5.2 2 8 2s5 1.1 5 2.5S10.8 7 8 7 3 5.9 3 4.5z"/><path d="M3 4.5v7C3 12.9 5.2 14 8 14s5-1.1 5-2.5v-7M3 8c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5"/>',
   suggest:'<path d="M2.5 3.5h11v7.5H7l-3 2.5V11H2.5z"/><path d="M5.5 6.3h5M5.5 8.3h3"/>',
-  resources:'<path d="M2 4.5h4.2l1.3 1.5H14v7H2z"/><path d="M2 4.5V3h4l1 1.5"/>',
   guide:'<path d="M8 3.4C6.7 2.3 4.9 2 2.6 2v11.2c2.3 0 4.1.3 5.4 1.4 1.3-1.1 3.1-1.4 5.4-1.4V2c-2.3 0-4.1.3-5.4 1.4zM8 3.4v11.2"/>'
 };
 const svgIcon = k => '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">' + (ICON[k]||'') + '</svg>';
@@ -717,7 +716,6 @@ const MENUS = [
   { key:'fund',      label:'연구비 지급신청', group:'연구 관리' },
   { key:'deadlines', label:'마감·성과',     group:'연구 관리' },
   { key:'equipment', label:'장비·물품',     group:'연구 관리' },
-  { key:'resources', label:'자료실',        group:'연구 관리' },
   { key:'admin',     label:'구성원·권한',   group:'관리', adminOnly:true },
   { key:'backup',    label:'백업·복원',     group:'관리', adminOnly:true },
   { key:'guide',     label:'설정 가이드',   group:'도움말', fixed:true }
@@ -732,14 +730,13 @@ const DEFAULT_PERMS = {
   fund:      { view: ALL, edit: ['admin','grad'] },
   deadlines: { view: ALL, edit: ['admin','grad','intern'] },
   equipment: { view: ALL, edit: ['admin','grad'] },
-  suggest:   { view: ALL, edit: ['admin'] },
-  resources: { view: ALL, edit: ['admin','grad'] }
+  suggest:   { view: ALL, edit: ['admin'] }
 };
 const PERM_DESC = {
   notices:'공지 작성·수정', calendar:'연구실 일정 등록·수정 (개인 일정은 누구나)', timetable:'시간표 편집',
   presence:'(재실 상태는 각자 본인 것만 변경)', minutes:'회의록 작성, 발표 순서 관리', fund:'연구비 신청 내역 편집',
   deadlines:'마감·성과 항목 등록·수정', equipment:'장비·재고 등록, 구매요청 승인 (예약·구매요청은 누구나)',
-  suggest:'건의 답변·상태 변경·삭제 (글쓰기와 공감은 누구나)', resources:'자료 등록·수정'
+  suggest:'건의 답변·상태 변경·삭제 (글쓰기와 공감은 누구나)'
 };
 function perms(){
   const p = (S.app && S.app.perms) || {}; const out = {};
@@ -765,7 +762,7 @@ const S = {
   app:null, presentation:null, appLoaded:false,
   users:{}, notices:{}, events:{}, timetables:{}, deadlines:{}, minutes:{},
   fundProjects:{}, fundBatches:{}, equipment:{}, reservations:{}, supplies:{}, purchases:{},
-  suggestions:{}, resources:{}, achievements:{}
+  suggestions:{}, achievements:{}
 };
 const vals = o => Object.values(o || {});
 let ME = null, MODE = null, BE = null, AU = null, FB = null;
@@ -919,7 +916,7 @@ function collInto(store, after){
 }
 const COLL_MENU = { notices:'notices', timetables:'timetable', deadlines:'deadlines', minutes:'minutes', fundProjects:'fund', fundBatches:'fund',
                     equipment:'equipment', reservations:'equipment', supplies:'equipment', purchases:'equipment',
-                    suggestions:'suggest', resources:'resources', achievements:'deadlines' };
+                    suggestions:'suggest', achievements:'deadlines' };
 let permSig = '';
 const evShared = {}, evMine = {};
 function mergeEvents(){ for(const k in S.events) delete S.events[k]; Object.assign(S.events, evShared, evMine); }
@@ -1253,7 +1250,7 @@ function startApp(){
 }
 function teardownApp(){
   APP_STARTED = false; unsubAll(); permSig = '';
-  for(const k of ['users','notices','events','timetables','deadlines','minutes','fundProjects','fundBatches','equipment','reservations','supplies','purchases','suggestions','resources','achievements']) for(const id in S[k]) delete S[k][id];
+  for(const k of ['users','notices','events','timetables','deadlines','minutes','fundProjects','fundBatches','equipment','reservations','supplies','purchases','suggestions','achievements']) for(const id in S[k]) delete S[k][id];
   for(const k in evShared) delete evShared[k]; for(const k in evMine) delete evMine[k];
   S.app = null; S.presentation = null; S.appLoaded = false;
   if(typeof Fund !== 'undefined') Fund.reset();
@@ -2447,7 +2444,7 @@ MOD.admin = {
    백업 · 복원
    ================================================================= */
 const BACKUP_COLLS = { users:'구성원 계정', notices:'공지사항', events:'일정', timetables:'시간표', deadlines:'마감 트래커', minutes:'회의록',
-  fundProjects:'연구비 과제', fundBatches:'연구비 신청차수', equipment:'장비', reservations:'장비 예약', supplies:'소모품', purchases:'구매 요청', suggestions:'건의사항', resources:'자료실', achievements:'연구 성과', settings:'설정(명단·권한·발표순서)' };
+  fundProjects:'연구비 과제', fundBatches:'연구비 신청차수', equipment:'장비', reservations:'장비 예약', supplies:'소모품', purchases:'구매 요청', suggestions:'건의사항', achievements:'연구 성과', settings:'설정(명단·권한·발표순서)' };
 const Backup = {
   build(){
     const data = {};
@@ -3865,7 +3862,6 @@ service cloud.firestore {
         && resource.data.status == '요청' && request.resource.data.status == '요청' && mine());
       allow delete: if canEdit('equipment') || (canAct() && resource.data.uid == request.auth.uid && resource.data.status == '요청');
     }
-    match /resources/{id}    { allow read: if canView('resources'); allow write: if canEdit('resources'); }
     match /achievements/{id} { allow read: if canView('deadlines'); allow write: if canEdit('deadlines'); }
     // 건의사항: 누구나 작성·공감, 답변과 상태 변경은 편집 권한자. 익명 글에는 작성자 정보를 저장하지 않음
     match /suggestions/{id} {
@@ -4070,67 +4066,6 @@ MOD.suggest = {
     }
     const s = e.target.closest('[data-sg]'); if(s) Suggest.view(s.dataset.sg);
   }
-};
-
-/* =================================================================
-   자료실 (링크 · 양식 · 폴더 경로 · 메모)
-   ================================================================= */
-const RS_CATS = ['양식','학교 시스템','장비 매뉴얼','논문·발표','신입생 안내','기타'];
-const Res = {
-  q: '',
-  kind(x){ const u = String(x.url || '').trim(); return !u ? 'note' : /^https?:\/\//i.test(u) ? 'link' : 'path'; },
-  cats(){ const c = RS_CATS.slice(); vals(S.resources).forEach(x => { if(x.cat && !c.includes(x.cat)) c.push(x.cat); }); return c; },
-  edit(id){
-    const x = id ? S.resources[id] : { title:'', url:'', cat:'양식', desc:'', pinned:false };
-    openModal({ title: id ? '자료 수정' : '자료 추가', wide:true,
-      body: '<div class="form">' + fld('제목', '<input name="title" value="' + esc(x.title) + '">', true) +
-        fld('분류 (직접 입력 가능)', '<input name="cat" list="rsCats" value="' + esc(x.cat || '') + '"><datalist id="rsCats">' + this.cats().map(c => '<option value="' + esc(c) + '">').join('') + '</datalist>') +
-        '<div><label class="fl">&nbsp;</label><label class="chk"><input type="checkbox" name="pinned"' + (x.pinned ? ' checked' : '') + '> 맨 위에 고정</label></div>' +
-        fld('링크 또는 폴더 경로 (비워 두면 메모)', '<input name="url" value="' + esc(x.url || '') + '" placeholder="https://…  또는  Z:\\양식\\출장신청서.hwp">', true) +
-        fld('설명 · 메모', '<textarea name="desc" style="min-height:120px">' + esc(x.desc || '') + '</textarea>', true) + '</div>' +
-        '<div class="hint" style="margin-top:8px">https:// 로 시작하면 새 탭으로 열리고, 그 밖의 경로(Z:\\… 등)는 클릭하면 복사됩니다.</div>',
-      buttons: [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 자료를 삭제할까요?', onClick: () => dbDel('resources', id) } : null,
-        { label:'취소' }, { label:'저장', cls:'primary', onClick: (m) => {
-          const f = readForm(m.el); if(!f.title){ toast('제목을 입력하세요', true); return false; }
-          f.cat = f.cat || '기타';
-          const data = Object.assign({}, id ? x : { createdAt: Date.now(), by: ME.name }, f, { updatedAt: Date.now() }); delete data.id;
-          dbSet('resources', id || newId(), data);
-        } } ] });
-  },
-  async open(id){
-    const x = S.resources[id]; if(!x) return; const k = this.kind(x);
-    if(k === 'link'){ window.open(x.url, '_blank', 'noopener'); return; }
-    if(k === 'path'){ toast(await copyText(x.url) ? '경로를 복사했습니다 — 탐색기 주소창(Ctrl+L)에 붙여넣으세요' : '복사 실패', false); return; }
-    openModal({ title: x.title, wide:true, sub: esc(x.cat || ''), body: '<div class="prewrap">' + linkify(x.desc || '') + '</div>' });
-  }
-};
-MOD.resources = {
-  hdr(){ return canEdit('resources') ? '<button class="btn primary small" data-act="new">＋ 자료 추가</button>' : ''; },
-  render(){
-    const q = Res.q; const ed = canEdit('resources');
-    const list = vals(S.resources).filter(x => !q || ((x.title || '') + (x.desc || '') + (x.cat || '') + (x.url || '')).toLowerCase().includes(q.toLowerCase()));
-    let h = '<div class="toolbar"><input data-q placeholder="자료 검색" value="' + esc(q) + '" style="width:260px"><span class="hint">🔗 링크는 새 탭으로, 📁 경로는 클릭하면 복사, 📝 메모는 내용 보기</span></div>';
-    if(!list.length) return h + '<div class="empty">' + (q ? '검색 결과가 없습니다.' : '등록된 자료가 없습니다.' + (ed ? ' [＋ 자료 추가]로 자주 쓰는 양식·링크·폴더 경로를 모아두세요.' : '')) + '</div>';
-    const ICONS = { link:'🔗', path:'📁', note:'📝' };
-    const cats = Res.cats().filter(c => list.some(x => (x.cat || '기타') === c));
-    h += '<div class="grid2">';
-    for(const c of cats){
-      const items = list.filter(x => (x.cat || '기타') === c).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(a.title).localeCompare(String(b.title)));
-      h += '<div class="card"><h3>' + esc(c) + ' <span class="muted small" style="font-weight:500">' + items.length + '</span></h3><div class="list">' + items.map(x => {
-        const k = Res.kind(x);
-        return '<div class="li click" data-rs="' + x.id + '" title="' + esc(x.url || '') + '"><span>' + ICONS[k] + '</span><span class="t">' + (x.pinned ? '📌 ' : '') + '<b style="font-weight:600">' + esc(x.title) + '</b>' +
-          (x.desc && k !== 'note' ? ' <span class="muted small">— ' + esc(x.desc.split('\n')[0]) + '</span>' : '') + '</span>' +
-          (ed ? '<button class="btn small" data-rsedit="' + x.id + '">수정</button>' : '') + '</div>';
-      }).join('') + '</div></div>';
-    }
-    return h + '</div>';
-  },
-  onclick(e){
-    const a = e.target.closest('[data-act="new"]'); if(a) return Res.edit(null);
-    const ed = e.target.closest('[data-rsedit]'); if(ed) return Res.edit(ed.dataset.rsedit);
-    const r = e.target.closest('[data-rs]'); if(r) Res.open(r.dataset.rs);
-  },
-  oninput(e){ if(e.target.dataset.q !== undefined){ Res.q = e.target.value; clearTimeout(this._t); this._t = setTimeout(() => { const pos = e.target.selectionStart; render(); const i = $('[data-q]'); if(i){ i.focus(); i.setSelectionRange(pos, pos); } }, 250); } }
 };
 
 /* =================================================================
