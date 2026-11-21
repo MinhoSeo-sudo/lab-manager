@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.7';
+const APP_VERSION = '1.7.1';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -625,6 +625,8 @@ function ddayInfo(dateStr, done){
   const cls = done ? 'done' : (n <= 3 && n >= 0) ? 'hot' : (n <= 7 && n > 0) ? 'warm' : n < 0 ? '' : '';
   return { n, label, cls };
 }
+/* 링크는 http(s)만 허용 — javascript: 같은 주소가 클릭 가능한 링크로 들어가지 않도록 */
+const safeUrl = u => /^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : '';
 function linkify(t){
   return esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
 }
@@ -2033,7 +2035,7 @@ MOD.deadlines = {
         '<td><b>' + esc(d.title) + '</b>' + (d.memo ? '<div class="muted small" style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(d.memo) + '</div>' : '') + '</td>' +
         '<td><span class="chip">' + esc(d.kind) + '</span></td><td>' + (d.owners || []).map(n => '<span title="' + esc(n) + '">' + avatar(n, personColor(n), 'sm') + '</span>').join(' ') + '</td>' +
         '<td>' + (canEdit('deadlines') ? '<select data-status="' + d.id + '">' + DL_STATUS.map(k => opt(k, k, d.status)).join('') + '</select>' : '<span class="chip ' + (Deadline.isDone(d) ? 'ok' : 'accent') + '">' + esc(d.status) + '</span>') + '</td>' +
-        '<td>' + (d.link ? '<a href="' + esc(d.link) + '" target="_blank" rel="noopener" data-stop>🔗</a>' : '') + '</td></tr>';
+        '<td>' + (safeUrl(d.link) ? '<a href="' + esc(safeUrl(d.link)) + '" target="_blank" rel="noopener" data-stop>🔗</a>' : '') + '</td></tr>';
     }
     return h + '</tbody></table></div>';
   },
@@ -2191,7 +2193,7 @@ MOD.equipment = {
     h += '<div class="card tbl-wrap" style="padding:6px 10px"><table class="tbl"><thead><tr><th>요청일</th><th>품목</th><th>수량</th><th>금액</th><th>과제</th><th>요청자</th><th>상태</th></tr></thead><tbody>';
     for(const p of list){
       const pj = S.fundProjects[p.projectId];
-      h += '<tr class="click" data-pur="' + p.id + '"><td class="nowrap">' + fmtTs(p.createdAt) + '</td><td><b>' + esc(p.item) + '</b>' + (p.link ? ' <a href="' + esc(p.link) + '" target="_blank" rel="noopener" data-stop>🔗</a>' : '') + '</td>' +
+      h += '<tr class="click" data-pur="' + p.id + '"><td class="nowrap">' + fmtTs(p.createdAt) + '</td><td><b>' + esc(p.item) + '</b>' + (safeUrl(p.link) ? ' <a href="' + esc(safeUrl(p.link)) + '" target="_blank" rel="noopener" data-stop>🔗</a>' : '') + '</td>' +
         '<td>' + esc(p.qty) + '</td><td class="nowrap">' + (p.price ? fmt(p.price) + '원' : '-') + '</td><td>' + esc(pj ? (pj.short || pj.name) : '-') + '</td><td>' + esc(p.userName) + '</td>' +
         '<td>' + (ed ? '<select data-pst="' + p.id + '">' + PUR_STATUS.map(s => opt(s, s, p.status)).join('') + '</select>' : '<span class="chip ' + (p.status === '수령' ? 'ok' : p.status === '반려' ? 'danger' : 'accent') + '">' + esc(p.status) + '</span>') + '</td></tr>';
     }
@@ -4136,7 +4138,7 @@ const Ach = {
         return '<tr class="click" data-ach="' + x.id + '"><td class="nowrap muted" style="width:86px">' + esc(x.date || '') + '</td><td style="width:86px"><span class="chip accent">' + esc(x.type) + '</span></td>' +
           '<td><b>' + esc(x.title) + '</b><div class="muted small">' + esc([x.authors, x.venue].filter(Boolean).join(' · ')) + '</div></td>' +
           '<td class="nowrap">' + (pj ? '<span class="chip">' + esc(pj.short || pj.name) + '</span>' : '') + '</td><td class="nowrap"><span class="chip ok">' + esc(x.status || '') + '</span></td>' +
-          '<td style="width:30px">' + (x.link ? '<a href="' + esc(x.link) + '" target="_blank" rel="noopener" data-stop>🔗</a>' : '') + '</td></tr>';
+          '<td style="width:30px">' + (safeUrl(x.link) ? '<a href="' + esc(safeUrl(x.link)) + '" target="_blank" rel="noopener" data-stop>🔗</a>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
     }
     return h;
