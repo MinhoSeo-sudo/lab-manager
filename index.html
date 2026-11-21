@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.2';
+const APP_VERSION = '1.2.1';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -3051,8 +3051,29 @@ const Fund = (() => {
         if(perm === 'granted'){ attachRoot = attachPendingRoot; attachPendingRoot = null; refreshAttachModal(); syncDownFiles(); return; }
         attachPendingRoot = null;
       }
-      const h = await window.showDirectoryPicker({ mode:'readwrite' }); attachRoot = h; await idbSet('root', h); refreshAttachModal(); syncDownFiles();
-    }catch(e){}
+      pickErr = '';
+      let h;
+      try{ h = await window.showDirectoryPicker({ mode:'readwrite' }); }
+      catch(e1){
+        if(e1 && e1.name === 'AbortError'){ pickErr = '폴더 선택이 취소되었습니다. (폴더를 한 번 클릭한 뒤 [폴더 선택] 버튼을 눌러야 합니다. 권한 창에서 [취소]를 눌러도 이렇게 됩니다)'; return; }
+        /* 읽기 전용으로 먼저 고른 뒤 쓰기 권한을 따로 요청해 봄 */
+        h = await window.showDirectoryPicker();
+      }
+      await useFolderHandle(h);
+    }catch(e){ pickErr = '폴더를 연결하지 못했습니다: ' + (e && e.name ? e.name + ' — ' : '') + (e && e.message ? e.message : e); }
+  }
+  let pickErr = '';
+  async function useFolderHandle(h){
+    if(!h || h.kind !== 'directory'){ pickErr = '폴더가 아닙니다. 폴더를 선택하세요.'; return false; }
+    let perm = 'granted';
+    try{ perm = await h.queryPermission({ mode:'readwrite' }); if(perm !== 'granted') perm = await h.requestPermission({ mode:'readwrite' }); }catch(e){ perm = 'error:' + e.message; }
+    if(perm !== 'granted'){ pickErr = '이 폴더에 쓰기 권한을 받지 못했습니다 (' + perm + '). 주소창 왼쪽 자물쇠 아이콘 → 사이트 설정 → "파일 수정"이 차단되어 있는지 확인하세요.'; return false; }
+    /* 실제로 써지는지 시험 */
+    try{ const t = await h.getFileHandle('.연결확인.tmp', { create:true }); const w = await t.createWritable(); await w.write('ok'); await w.close(); await h.removeEntry('.연결확인.tmp'); }
+    catch(e){ pickErr = '폴더는 열렸지만 파일을 쓸 수 없습니다: ' + e.name + ' — ' + e.message + ' (NAS 계정이 읽기 전용인지 확인하세요)'; return false; }
+    attachRoot = h; attachPendingRoot = null;
+    try{ await idbSet('root', h); }catch(e){}
+    refreshAttachModal(); syncDownFiles(); return true;
   }
   function fsSan(s, max){
     const t = String(s == null ? '' : s).replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().replace(/[.\s]+$/, '');
@@ -3592,7 +3613,8 @@ const UNINSTALL_BAT_B64 = 'QGVjaG8gb2ZmDQpjaGNwIDk0OSA+bnVsDQpyZWcgZGVsZXRlICJIS
       body: !FS_OK ? '<div class="alert warn" style="display:block">이 브라우저는 폴더 연결을 지원하지 않습니다. <b>PC의 Chrome 또는 Edge</b>에서 사용하세요.</div>' :
         '<div style="font-size:13.5px;margin-bottom:10px">이 컴퓨터의 증빙 폴더: ' + st + '</div>' +
         '<div class="row"><button class="btn primary" id="fmPick">' + (attachRoot ? '폴더 변경' : attachPendingRoot ? '다시 연결' : '공유폴더 연결') + '</button>' +
-        (attachRoot ? '<button class="btn" id="fmBrowse">내용 보기</button><button class="btn" id="fmOpen">📂 탐색기로 열기</button>' + (ed ? '<button class="btn" id="fmTidy">전체 폴더 정리</button>' : '') : '') + '<span class="msg" id="fmMsg"></span></div>' +
+        (attachRoot ? '<button class="btn" id="fmBrowse">내용 보기</button><button class="btn" id="fmOpen">📂 탐색기로 열기</button>' + (ed ? '<button class="btn" id="fmTidy">전체 폴더 정리</button>' : '') : '') + '</div><div class="msg" id="fmMsg" style="margin-top:8px;line-height:1.6"></div>' +
+        '<div class="hint" style="margin-top:6px">버튼으로 안 되면: 탐색기에서 <b>폴더를 이 창 위로 끌어다 놓아도</b> 연결됩니다.</div>' +
         '<div class="note" style="margin-top:12px;line-height:1.75"><b>연결 방법 (PC마다 한 번)</b><br>① 연구실 NAS를 네트워크 드라이브(예: Z:)로 연결해 둡니다.<br>② [공유폴더 연결]을 누르고 <b>모두가 같은 폴더</b>를 고릅니다 (예: <code>Z:\\연구비증빙</code>). 드라이브 맨 위(Z:\\)는 브라우저가 막으므로 하위 폴더를 하나 만들어 선택하세요.<br>③ 권한 창에서 [수정 허용]. Chrome이 "방문할 때마다 허용"을 물으면 선택해 두면 다음부터 묻지 않습니다.<br>' +
         '그 폴더 안에 <code>연구비_첨부 / 과제 / RND카드·계좌이체 / 신청차수 / 비목 / 날짜_내역_금액_종류.pdf</code> 구조가 자동으로 만들어집니다.</div>' +
         '<h4>탐색기로 바로 열기 (선택)</h4><div class="hint" style="margin-bottom:6px">연결한 폴더의 전체 경로를 적어 두면 [📂 폴더 열기]·[경로 복사]를 쓸 수 있습니다. 탐색기에서 그 폴더를 열고 주소창(Ctrl+L)의 경로를 붙여넣으세요.</div>' +
@@ -3601,7 +3623,18 @@ const UNINSTALL_BAT_B64 = 'QGVjaG8gb2ZmDQpjaGNwIDk0OSA+bnVsDQpyZWcgZGVsZXRlICJIS
       onMount: (el, m) => {
         if(!FS_OK) return;
         const msg = (t, ok) => { const x = $('#fmMsg', el); x.textContent = t; x.className = 'msg ' + (ok ? 'ok' : 'err'); };
-        $('#fmPick', el).onclick = async () => { await pickAttachFolder(); m.close(); render(); folderModal(); if(attachRoot) toast('✓ 증빙 폴더를 연결했습니다: ' + attachRoot.name); };
+        const afterPick = (was) => { if(attachRoot && attachRoot !== was){ m.close(); render(); folderModal(); toast('✓ 증빙 폴더를 연결했습니다: ' + attachRoot.name); } else msg(pickErr || '폴더가 연결되지 않았습니다.', false); };
+        $('#fmPick', el).onclick = async () => { const was = attachRoot; msg('폴더 선택 창을 여는 중…', true); await pickAttachFolder(); afterPick(was); };
+        /* 다른 방법: 탐색기에서 폴더를 이 창으로 끌어다 놓기 */
+        el.addEventListener('dragover', e => { e.preventDefault(); });
+        el.addEventListener('drop', async e => {
+          e.preventDefault(); e.stopPropagation();
+          const it = e.dataTransfer && e.dataTransfer.items && e.dataTransfer.items[0];
+          if(!it || !it.getAsFileSystemHandle){ msg('이 브라우저는 폴더 끌어다 놓기를 지원하지 않습니다.', false); return; }
+          const was = attachRoot; pickErr = '';
+          try{ const h = await it.getAsFileSystemHandle(); await useFolderHandle(h); }catch(err){ pickErr = '폴더를 연결하지 못했습니다: ' + err.name + ' — ' + err.message; }
+          afterPick(was);
+        });
         if($('#fmBrowse', el)) $('#fmBrowse', el).onclick = async () => { browseModal.classList.add('open'); document.body.appendChild(browseModal); await browseTo(['연구비_첨부']); };
         if($('#fmTidy', el)) $('#fmTidy', el).onclick = async () => { if(await confirmBox('모든 증빙 파일을 현재 규칙(과제/구분/차수/비목)에 맞게 옮기고 이름을 바꿉니다. 어느 내역에도 속하지 않는 파일은 ' + QUARANTINE + ' 폴더로 모읍니다(삭제하지 않음). 진행할까요?', '정리')) reorganizeFolder(false, msg); };
         if($('#fmOpen', el)) $('#fmOpen', el).onclick = () => { if(!basePath){ msg('아래에 폴더 전체 경로를 먼저 저장하세요.', false); $('#fmBase', el).focus(); return; } launchExplorer(winPathFor(['연구비_첨부']), msg); };
