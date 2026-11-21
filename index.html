@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.4';
+const APP_VERSION = '1.5';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -701,6 +701,8 @@ const ICON = {
   equipment:'<path d="M9.8 2.2a3.2 3.2 0 0 0-3.6 4.4L2 10.8 4.2 13l4.2-4.2a3.2 3.2 0 0 0 4.4-3.6l-2 2-1.9-.4-.4-1.9z"/>',
   admin:'<circle cx="6" cy="5.3" r="2.4"/><path d="M1.8 13.5c.4-2.4 2.1-3.8 4.2-3.8s3.8 1.4 4.2 3.8M11 3.2a2.2 2.2 0 0 1 0 4.2M12.2 9.9c1.3.5 2 1.7 2.2 3.6"/>',
   backup:'<path d="M3 4.5C3 3.1 5.2 2 8 2s5 1.1 5 2.5S10.8 7 8 7 3 5.9 3 4.5z"/><path d="M3 4.5v7C3 12.9 5.2 14 8 14s5-1.1 5-2.5v-7M3 8c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5"/>',
+  suggest:'<path d="M2.5 3.5h11v7.5H7l-3 2.5V11H2.5z"/><path d="M5.5 6.3h5M5.5 8.3h3"/>',
+  resources:'<path d="M2 4.5h4.2l1.3 1.5H14v7H2z"/><path d="M2 4.5V3h4l1 1.5"/>',
   guide:'<path d="M8 3.4C6.7 2.3 4.9 2 2.6 2v11.2c2.3 0 4.1.3 5.4 1.4 1.3-1.1 3.1-1.4 5.4-1.4V2c-2.3 0-4.1.3-5.4 1.4zM8 3.4v11.2"/>'
 };
 const svgIcon = k => '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">' + (ICON[k]||'') + '</svg>';
@@ -711,9 +713,11 @@ const MENUS = [
   { key:'timetable', label:'시간표',        group:'연구실' },
   { key:'presence',  label:'재실 현황',     group:'연구실' },
   { key:'minutes',   label:'회의록·발표',   group:'연구실' },
+  { key:'suggest',   label:'건의사항',      group:'연구실' },
   { key:'fund',      label:'연구비 지급신청', group:'연구 관리' },
-  { key:'deadlines', label:'마감 트래커',   group:'연구 관리' },
+  { key:'deadlines', label:'마감·성과',     group:'연구 관리' },
   { key:'equipment', label:'장비·물품',     group:'연구 관리' },
+  { key:'resources', label:'자료실',        group:'연구 관리' },
   { key:'admin',     label:'구성원·권한',   group:'관리', adminOnly:true },
   { key:'backup',    label:'백업·복원',     group:'관리', adminOnly:true },
   { key:'guide',     label:'설정 가이드',   group:'도움말', fixed:true }
@@ -727,12 +731,15 @@ const DEFAULT_PERMS = {
   minutes:   { view: ALL, edit: ['admin','grad'] },
   fund:      { view: ALL, edit: ['admin','grad'] },
   deadlines: { view: ALL, edit: ['admin','grad','intern'] },
-  equipment: { view: ALL, edit: ['admin','grad'] }
+  equipment: { view: ALL, edit: ['admin','grad'] },
+  suggest:   { view: ALL, edit: ['admin'] },
+  resources: { view: ALL, edit: ['admin','grad'] }
 };
 const PERM_DESC = {
   notices:'공지 작성·수정', calendar:'연구실 일정 등록·수정 (개인 일정은 누구나)', timetable:'시간표 편집',
   presence:'(재실 상태는 각자 본인 것만 변경)', minutes:'회의록 작성, 발표 순서 관리', fund:'연구비 신청 내역 편집',
-  deadlines:'마감 항목 등록·수정', equipment:'장비·재고 등록, 구매요청 승인 (예약·구매요청은 누구나)'
+  deadlines:'마감·성과 항목 등록·수정', equipment:'장비·재고 등록, 구매요청 승인 (예약·구매요청은 누구나)',
+  suggest:'건의 답변·상태 변경·삭제 (글쓰기와 공감은 누구나)', resources:'자료 등록·수정'
 };
 function perms(){
   const p = (S.app && S.app.perms) || {}; const out = {};
@@ -757,7 +764,8 @@ function canEdit(m){
 const S = {
   app:null, presentation:null, appLoaded:false,
   users:{}, notices:{}, events:{}, timetables:{}, deadlines:{}, minutes:{},
-  fundProjects:{}, fundBatches:{}, equipment:{}, reservations:{}, supplies:{}, purchases:{}
+  fundProjects:{}, fundBatches:{}, equipment:{}, reservations:{}, supplies:{}, purchases:{},
+  suggestions:{}, resources:{}, achievements:{}
 };
 const vals = o => Object.values(o || {});
 let ME = null, MODE = null, BE = null, AU = null, FB = null;
@@ -910,7 +918,8 @@ function collInto(store, after){
   };
 }
 const COLL_MENU = { notices:'notices', timetables:'timetable', deadlines:'deadlines', minutes:'minutes', fundProjects:'fund', fundBatches:'fund',
-                    equipment:'equipment', reservations:'equipment', supplies:'equipment', purchases:'equipment' };
+                    equipment:'equipment', reservations:'equipment', supplies:'equipment', purchases:'equipment',
+                    suggestions:'suggest', resources:'resources', achievements:'deadlines' };
 let permSig = '';
 const evShared = {}, evMine = {};
 function mergeEvents(){ for(const k in S.events) delete S.events[k]; Object.assign(S.events, evShared, evMine); }
@@ -1244,7 +1253,7 @@ function startApp(){
 }
 function teardownApp(){
   APP_STARTED = false; unsubAll(); permSig = '';
-  for(const k of ['users','notices','events','timetables','deadlines','minutes','fundProjects','fundBatches','equipment','reservations','supplies','purchases']) for(const id in S[k]) delete S[k][id];
+  for(const k of ['users','notices','events','timetables','deadlines','minutes','fundProjects','fundBatches','equipment','reservations','supplies','purchases','suggestions','resources','achievements']) for(const id in S[k]) delete S[k][id];
   for(const k in evShared) delete evShared[k]; for(const k in evMine) delete evMine[k];
   S.app = null; S.presentation = null; S.appLoaded = false;
   if(typeof Fund !== 'undefined') Fund.reset();
@@ -1264,6 +1273,7 @@ window.addEventListener('hashchange', () => { if(!APP_STARTED) return; setRouteF
 function navBadge(k){
   if(k === 'notices') return vals(S.notices).filter(n => !(n.readBy || []).includes(ME.uid)).length;
   if(k === 'admin') return vals(S.users).filter(u => u.role === 'pending').length;
+  if(k === 'suggest' && canEdit('suggest')) return vals(S.suggestions).filter(x => x.status === '접수').length;
   if(k === 'equipment' && canEdit('equipment')) return vals(S.purchases).filter(p => p.status === '요청').length;
   return 0;
 }
@@ -1961,6 +1971,7 @@ const Deadline = {
       onMount: (el) => { if(ro) $$('input,select,textarea', el).forEach(x => x.disabled = true); },
       buttons: ro ? [{ label:'닫기' }] : [
         id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 마감 항목을 삭제할까요?', onClick: () => dbDel('deadlines', id) } : null,
+        id ? { label:'🏆 성과로 등록', left:true, onClick: () => { setTimeout(() => Ach.edit(null, { title: d.title, type: /특허/.test(d.kind) ? '특허' : /학회/.test(d.kind) ? '학회 발표' : /논문/.test(d.kind) ? '논문' : '기타', date: d.date, authors: (d.owners || []).join(', '), link: d.link || '' }), 0); } } : null,
         { label:'취소' },
         { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el);
@@ -2436,7 +2447,7 @@ MOD.admin = {
    백업 · 복원
    ================================================================= */
 const BACKUP_COLLS = { users:'구성원 계정', notices:'공지사항', events:'일정', timetables:'시간표', deadlines:'마감 트래커', minutes:'회의록',
-  fundProjects:'연구비 과제', fundBatches:'연구비 신청차수', equipment:'장비', reservations:'장비 예약', supplies:'소모품', purchases:'구매 요청', settings:'설정(명단·권한·발표순서)' };
+  fundProjects:'연구비 과제', fundBatches:'연구비 신청차수', equipment:'장비', reservations:'장비 예약', supplies:'소모품', purchases:'구매 요청', suggestions:'건의사항', resources:'자료실', achievements:'연구 성과', settings:'설정(명단·권한·발표순서)' };
 const Backup = {
   build(){
     const data = {};
@@ -3854,6 +3865,18 @@ service cloud.firestore {
         && resource.data.status == '요청' && request.resource.data.status == '요청' && mine());
       allow delete: if canEdit('equipment') || (canAct() && resource.data.uid == request.auth.uid && resource.data.status == '요청');
     }
+    match /resources/{id}    { allow read: if canView('resources'); allow write: if canEdit('resources'); }
+    match /achievements/{id} { allow read: if canView('deadlines'); allow write: if canEdit('deadlines'); }
+    // 건의사항: 누구나 작성·공감, 답변과 상태 변경은 편집 권한자. 익명 글에는 작성자 정보를 저장하지 않음
+    match /suggestions/{id} {
+      allow read: if canView('suggest');
+      allow create: if canEdit('suggest') || (canAct() && canView('suggest') && request.resource.data.status == '접수'
+        && (request.resource.data.anon == true ? !('uid' in request.resource.data) : mine()));
+      allow update: if canEdit('suggest') || (canView('suggest') && onlyChanged(['likes']))
+        || (canAct() && resource.data.get('uid', '') == request.auth.uid && resource.data.status == '접수'
+          && request.resource.data.status == '접수' && mine());
+      allow delete: if canEdit('suggest') || (canAct() && resource.data.get('uid', '') == request.auth.uid && resource.data.status == '접수');
+    }
     // 일정: 연구실 일정은 편집 권한자, 개인 일정은 본인만. 비밀 일정은 본인 외 아무도 읽을 수 없음
     match /events/{id} {
       allow read: if canView('calendar') && (resource.data.visibility == 'shared' || resource.data.uid == request.auth.uid);
@@ -3970,6 +3993,211 @@ MOD.guide = {
     b.textContent = ok ? '복사됨 ✓' : '복사 실패'; setTimeout(() => b.textContent = '복사', 1600);
   }
 };
+
+
+/* =================================================================
+   건의사항
+   ================================================================= */
+const SG_CATS = ['프로그램 개선','연구실 운영','장비·물품','기타'];
+const SG_STATUS = ['접수','검토 중','반영','보류'];
+const SG_CLS = { '접수':'accent', '검토 중':'warn', '반영':'ok', '보류':'' };
+const Suggest = {
+  f: 'open',
+  author(x){ return x.anon ? '익명' : (x.authorName || ''); },
+  mine(x){ return !x.anon && x.uid === ME.uid; },
+  edit(id){
+    const x = id ? S.suggestions[id] : { title:'', body:'', cat:'프로그램 개선', anon:false };
+    openModal({ title: id ? '건의 수정' : '건의하기', wide:true, sticky:true,
+      body: '<div class="form">' + fld('제목', '<input name="title" value="' + esc(x.title) + '">', true) +
+        fld('분류', '<select name="cat">' + SG_CATS.map(c => opt(c, c, x.cat)).join('') + '</select>') +
+        (id ? '<div></div>' : '<div><label class="fl">&nbsp;</label><label class="chk"><input type="checkbox" name="anon"> 익명으로 올리기</label></div>') +
+        fld('내용', '<textarea name="body" style="min-height:180px" placeholder="무엇이 불편한지, 어떻게 바뀌면 좋을지 적어주세요">' + esc(x.body) + '</textarea>', true) + '</div>' +
+        (id ? '' : '<div class="hint" style="margin-top:8px;line-height:1.6">익명으로 올리면 작성자 정보가 서버에 저장되지 않아 <b>관리자도 누가 썼는지 알 수 없습니다.</b> 대신 올린 뒤에는 본인도 수정·삭제할 수 없습니다.</div>'),
+      buttons: [{ label:'취소' }, { label: id ? '저장' : '올리기', cls:'primary', onClick: (m) => {
+        const f = readForm(m.el);
+        if(!f.title){ toast('제목을 입력하세요', true); return false; }
+        if(id){ dbUpdate('suggestions', id, { title: f.title, body: f.body, cat: f.cat, updatedAt: Date.now(), status: x.status, uid: x.uid }); return; }
+        const data = { title: f.title, body: f.body, cat: f.cat, anon: !!f.anon, status:'접수', createdAt: Date.now(), likes: [] };
+        if(!f.anon){ data.uid = ME.uid; data.authorName = ME.name; }
+        dbSet('suggestions', newId(), data);
+      } }] });
+  },
+  view(id){
+    const x = S.suggestions[id]; if(!x) return;
+    const ed = canEdit('suggest'); const mine = this.mine(x) && x.status === '접수';
+    openModal({ title: x.title, wide:true,
+      sub: '<span class="chip">' + esc(x.cat || '') + '</span> <span class="chip ' + (SG_CLS[x.status] || '') + '">' + esc(x.status) + '</span> · ' + esc(this.author(x)) + ' · ' + fmtTs(x.createdAt) + ' · 공감 ' + (x.likes || []).length,
+      body: '<div class="prewrap">' + linkify(x.body || '(내용 없음)') + '</div>' +
+        (x.reply && !ed ? '<div class="card" style="box-shadow:none;background:#fafbfe;margin-top:16px"><b class="small">답변</b> <span class="muted small">' + esc(x.replyBy || '') + ' · ' + fmtTs(x.replyAt) + '</span><div class="prewrap" style="margin-top:6px">' + linkify(x.reply) + '</div></div>' : '') +
+        (ed ? '<h4>답변 · 처리 상태</h4><div class="form">' + fld('상태', '<select name="status">' + SG_STATUS.map(c => opt(c, c, x.status)).join('') + '</select>') + '<div></div>' +
+          fld('답변 (모두에게 보임)', '<textarea name="reply" style="min-height:110px">' + esc(x.reply || '') + '</textarea>', true) + '</div>' : ''),
+      buttons: [ (ed || mine) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 건의를 삭제할까요?', onClick: () => dbDel('suggestions', id) } : null,
+        mine ? { label:'수정', onClick: () => { setTimeout(() => Suggest.edit(id), 0); } } : null,
+        { label:'닫기' },
+        ed ? { label:'답변 저장', cls:'primary', onClick: (m) => { const f = readForm(m.el); const p = { status: f.status, reply: f.reply }; if(f.reply !== (x.reply || '')){ p.replyBy = ME.name; p.replyAt = Date.now(); } dbUpdate('suggestions', id, p); } } : null ] });
+  }
+};
+MOD.suggest = {
+  hdr(){ return canAct() ? '<button class="btn primary small" data-act="new">＋ 건의하기</button>' : ''; },
+  render(){
+    let list = vals(S.suggestions);
+    if(Suggest.f === 'open') list = list.filter(x => x.status === '접수' || x.status === '검토 중');
+    if(Suggest.f === 'done') list = list.filter(x => x.status === '반영' || x.status === '보류');
+    if(Suggest.f === 'mine') list = list.filter(x => Suggest.mine(x));
+    list.sort((a, b) => (b.likes || []).length - (a.likes || []).length || (b.createdAt || 0) - (a.createdAt || 0));
+    let h = '<div class="toolbar"><div class="seg">' + [['open','진행 중'],['done','처리 완료'],['mine','내 글'],['all','전체']].map(([k, l]) => '<button data-sf="' + k + '" class="' + (Suggest.f === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+      '<span class="hint">공감이 많은 순으로 보입니다. 익명 글은 [내 글]에 나오지 않습니다.</span></div>';
+    if(!list.length) return h + '<div class="empty">건의사항이 없습니다.' + (canAct() ? ' 오른쪽 위 [＋ 건의하기]로 올려주세요.' : '') + '</div>';
+    for(const x of list){
+      const liked = (x.likes || []).includes(ME.uid);
+      h += '<div class="notice" data-sg="' + x.id + '"><div style="display:flex;gap:12px;align-items:flex-start">' +
+        '<button class="btn small' + (liked ? ' primary' : '') + '" data-like="' + x.id + '" style="flex-shrink:0;min-width:58px" title="공감">👍 ' + (x.likes || []).length + '</button>' +
+        '<div style="min-width:0;flex:1"><div class="nt">' + esc(x.title) + ' <span class="chip">' + esc(x.cat || '') + '</span><span class="chip ' + (SG_CLS[x.status] || '') + '">' + esc(x.status) + '</span></div>' +
+        '<div class="nm">' + esc(Suggest.author(x)) + ' · ' + fmtTs(x.createdAt) + '</div><div class="nb">' + esc(x.body || '') + '</div>' +
+        (x.reply ? '<div class="small" style="margin-top:8px;padding:8px 11px;background:var(--accent-soft);border-radius:9px;color:#3730a3;white-space:pre-wrap;max-height:4.6em;overflow:hidden"><b>답변</b> ' + esc(x.reply) + '</div>' : '') +
+        '</div></div></div>';
+    }
+    return h;
+  },
+  onclick(e){
+    const a = e.target.closest('[data-act="new"]'); if(a) return Suggest.edit(null);
+    const f = e.target.closest('[data-sf]'); if(f){ Suggest.f = f.dataset.sf; return render(); }
+    const l = e.target.closest('[data-like]');
+    if(l){
+      const x = S.suggestions[l.dataset.like]; if(!x || !isMember()) return;
+      const likes = (x.likes || []).includes(ME.uid) ? x.likes.filter(u => u !== ME.uid) : (x.likes || []).concat(ME.uid);
+      x.likes = likes; BE.update('suggestions', x.id, { likes }).catch(err => toast(errMsg(err), true)); return render();
+    }
+    const s = e.target.closest('[data-sg]'); if(s) Suggest.view(s.dataset.sg);
+  }
+};
+
+/* =================================================================
+   자료실 (링크 · 양식 · 폴더 경로 · 메모)
+   ================================================================= */
+const RS_CATS = ['양식','학교 시스템','장비 매뉴얼','논문·발표','신입생 안내','기타'];
+const Res = {
+  q: '',
+  kind(x){ const u = String(x.url || '').trim(); return !u ? 'note' : /^https?:\/\//i.test(u) ? 'link' : 'path'; },
+  cats(){ const c = RS_CATS.slice(); vals(S.resources).forEach(x => { if(x.cat && !c.includes(x.cat)) c.push(x.cat); }); return c; },
+  edit(id){
+    const x = id ? S.resources[id] : { title:'', url:'', cat:'양식', desc:'', pinned:false };
+    openModal({ title: id ? '자료 수정' : '자료 추가', wide:true,
+      body: '<div class="form">' + fld('제목', '<input name="title" value="' + esc(x.title) + '">', true) +
+        fld('분류 (직접 입력 가능)', '<input name="cat" list="rsCats" value="' + esc(x.cat || '') + '"><datalist id="rsCats">' + this.cats().map(c => '<option value="' + esc(c) + '">').join('') + '</datalist>') +
+        '<div><label class="fl">&nbsp;</label><label class="chk"><input type="checkbox" name="pinned"' + (x.pinned ? ' checked' : '') + '> 맨 위에 고정</label></div>' +
+        fld('링크 또는 폴더 경로 (비워 두면 메모)', '<input name="url" value="' + esc(x.url || '') + '" placeholder="https://…  또는  Z:\\양식\\출장신청서.hwp">', true) +
+        fld('설명 · 메모', '<textarea name="desc" style="min-height:120px">' + esc(x.desc || '') + '</textarea>', true) + '</div>' +
+        '<div class="hint" style="margin-top:8px">https:// 로 시작하면 새 탭으로 열리고, 그 밖의 경로(Z:\\… 등)는 클릭하면 복사됩니다.</div>',
+      buttons: [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 자료를 삭제할까요?', onClick: () => dbDel('resources', id) } : null,
+        { label:'취소' }, { label:'저장', cls:'primary', onClick: (m) => {
+          const f = readForm(m.el); if(!f.title){ toast('제목을 입력하세요', true); return false; }
+          f.cat = f.cat || '기타';
+          const data = Object.assign({}, id ? x : { createdAt: Date.now(), by: ME.name }, f, { updatedAt: Date.now() }); delete data.id;
+          dbSet('resources', id || newId(), data);
+        } } ] });
+  },
+  async open(id){
+    const x = S.resources[id]; if(!x) return; const k = this.kind(x);
+    if(k === 'link'){ window.open(x.url, '_blank', 'noopener'); return; }
+    if(k === 'path'){ toast(await copyText(x.url) ? '경로를 복사했습니다 — 탐색기 주소창(Ctrl+L)에 붙여넣으세요' : '복사 실패', false); return; }
+    openModal({ title: x.title, wide:true, sub: esc(x.cat || ''), body: '<div class="prewrap">' + linkify(x.desc || '') + '</div>' });
+  }
+};
+MOD.resources = {
+  hdr(){ return canEdit('resources') ? '<button class="btn primary small" data-act="new">＋ 자료 추가</button>' : ''; },
+  render(){
+    const q = Res.q; const ed = canEdit('resources');
+    const list = vals(S.resources).filter(x => !q || ((x.title || '') + (x.desc || '') + (x.cat || '') + (x.url || '')).toLowerCase().includes(q.toLowerCase()));
+    let h = '<div class="toolbar"><input data-q placeholder="자료 검색" value="' + esc(q) + '" style="width:260px"><span class="hint">🔗 링크는 새 탭으로, 📁 경로는 클릭하면 복사, 📝 메모는 내용 보기</span></div>';
+    if(!list.length) return h + '<div class="empty">' + (q ? '검색 결과가 없습니다.' : '등록된 자료가 없습니다.' + (ed ? ' [＋ 자료 추가]로 자주 쓰는 양식·링크·폴더 경로를 모아두세요.' : '')) + '</div>';
+    const ICONS = { link:'🔗', path:'📁', note:'📝' };
+    const cats = Res.cats().filter(c => list.some(x => (x.cat || '기타') === c));
+    h += '<div class="grid2">';
+    for(const c of cats){
+      const items = list.filter(x => (x.cat || '기타') === c).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(a.title).localeCompare(String(b.title)));
+      h += '<div class="card"><h3>' + esc(c) + ' <span class="muted small" style="font-weight:500">' + items.length + '</span></h3><div class="list">' + items.map(x => {
+        const k = Res.kind(x);
+        return '<div class="li click" data-rs="' + x.id + '" title="' + esc(x.url || '') + '"><span>' + ICONS[k] + '</span><span class="t">' + (x.pinned ? '📌 ' : '') + '<b style="font-weight:600">' + esc(x.title) + '</b>' +
+          (x.desc && k !== 'note' ? ' <span class="muted small">— ' + esc(x.desc.split('\n')[0]) + '</span>' : '') + '</span>' +
+          (ed ? '<button class="btn small" data-rsedit="' + x.id + '">수정</button>' : '') + '</div>';
+      }).join('') + '</div></div>';
+    }
+    return h + '</div>';
+  },
+  onclick(e){
+    const a = e.target.closest('[data-act="new"]'); if(a) return Res.edit(null);
+    const ed = e.target.closest('[data-rsedit]'); if(ed) return Res.edit(ed.dataset.rsedit);
+    const r = e.target.closest('[data-rs]'); if(r) Res.open(r.dataset.rs);
+  },
+  oninput(e){ if(e.target.dataset.q !== undefined){ Res.q = e.target.value; clearTimeout(this._t); this._t = setTimeout(() => { const pos = e.target.selectionStart; render(); const i = $('[data-q]'); if(i){ i.focus(); i.setSelectionRange(pos, pos); } }, 250); } }
+};
+
+/* =================================================================
+   연구 성과 목록 (마감·성과 메뉴의 두 번째 탭)
+   ================================================================= */
+const ACH_TYPES = ['논문','학회 발표','특허','수상','기타'];
+const ACH_STATUS = ['게재','게재 승인','심사 중','발표','출원','등록','수상','기타'];
+const Ach = {
+  type: '',
+  hdr(){ return canEdit('deadlines') ? '<button class="btn primary small" data-act="achnew">＋ 성과 추가</button>' : ''; },
+  line(x){ return '[' + x.type + '] ' + (x.authors ? x.authors + '. ' : '') + '"' + x.title + '"' + (x.venue ? ', ' + x.venue : '') + (x.date ? ', ' + String(x.date).slice(0, 7) : '') + (x.status ? ' (' + x.status + ')' : '') + '.'; },
+  list(){ return vals(S.achievements).filter(x => !this.type || x.type === this.type).sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))); },
+  render(){
+    const list = this.list();
+    let h = '<div class="toolbar"><div class="seg"><button data-atype="" class="' + (!this.type ? 'on' : '') + '">전체</button>' + ACH_TYPES.map(t => '<button data-atype="' + t + '" class="' + (this.type === t ? 'on' : '') + '">' + t + '</button>').join('') + '</div><span class="sp"></span>' +
+      (list.length ? '<button class="btn small" data-act="achcopy">목록 복사 (보고서용)</button>' : '') + '</div>';
+    if(!list.length) return h + '<div class="empty">등록된 성과가 없습니다.' + (canEdit('deadlines') ? ' [＋ 성과 추가]로 등록하거나, 마감 항목을 열어 [🏆 성과로 등록]을 누르세요.' : '') + '</div>';
+    const years = Array.from(new Set(list.map(x => String(x.date || '').slice(0, 4) || '연도 미정')));
+    for(const y of years){
+      const items = list.filter(x => (String(x.date || '').slice(0, 4) || '연도 미정') === y);
+      h += '<div class="card tbl-wrap" style="padding:8px 12px"><h3 style="margin:6px 0 8px">' + esc(y) + (y === '연도 미정' ? '' : '년') + ' <span class="muted small" style="font-weight:500">' + items.length + '건</span></h3><table class="tbl"><tbody>' + items.map(x => {
+        const pj = S.fundProjects[x.projectId];
+        return '<tr class="click" data-ach="' + x.id + '"><td class="nowrap muted" style="width:86px">' + esc(x.date || '') + '</td><td style="width:86px"><span class="chip accent">' + esc(x.type) + '</span></td>' +
+          '<td><b>' + esc(x.title) + '</b><div class="muted small">' + esc([x.authors, x.venue].filter(Boolean).join(' · ')) + '</div></td>' +
+          '<td class="nowrap">' + (pj ? '<span class="chip">' + esc(pj.short || pj.name) + '</span>' : '') + '</td><td class="nowrap"><span class="chip ok">' + esc(x.status || '') + '</span></td>' +
+          '<td style="width:30px">' + (x.link ? '<a href="' + esc(x.link) + '" target="_blank" rel="noopener" data-stop>🔗</a>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    }
+    return h;
+  },
+  edit(id, preset){
+    const x = id ? S.achievements[id] : Object.assign({ type:'논문', title:'', authors:'', venue:'', date: todayStr(), status:'게재', link:'', projectId:'', memo:'' }, preset || {});
+    if(!x) return; const ro = !canEdit('deadlines');
+    const projs = vals(S.fundProjects).sort((a, b) => (a.order || 0) - (b.order || 0));
+    openModal({ title: id ? (ro ? x.title : '성과 수정') : '성과 추가', wide:true,
+      body: '<div class="form">' + fld('제목', '<input name="title" value="' + esc(x.title) + '">', true) +
+        fld('종류', '<select name="type">' + ACH_TYPES.map(t => opt(t, t, x.type)).join('') + '</select>') + fld('상태', '<select name="status">' + ACH_STATUS.map(t => opt(t, t, x.status)).join('') + '</select>') +
+        fld('저자 · 발명자 (표기 순서대로)', '<input name="authors" value="' + esc(x.authors || '') + '" placeholder="예: 서민호, 나정찬, 교신저자">', true) +
+        fld('게재처 · 학회 · 출원번호', '<input name="venue" value="' + esc(x.venue || '') + '" placeholder="예: IEEE RA-L / IROS 2026 / 10-2026-0000000">', true) +
+        fld('날짜 (게재·발표·출원일)', '<input type="date" name="date" value="' + esc(x.date || '') + '">') +
+        fld('관련 과제 (선택)', '<select name="projectId"><option value="">없음</option>' + projs.map(p => opt(p.id, p.short || p.name, x.projectId)).join('') + '</select>') +
+        fld('링크 (DOI 등)', '<input name="link" value="' + esc(x.link || '') + '">', true) + fld('메모', '<textarea name="memo">' + esc(x.memo || '') + '</textarea>', true) + '</div>',
+      onMount: (el) => { if(ro) $$('input,select,textarea', el).forEach(i => i.disabled = true); },
+      buttons: ro ? [{ label:'닫기' }] : [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 성과를 삭제할까요?', onClick: () => dbDel('achievements', id) } : null,
+        { label:'취소' }, { label:'저장', cls:'primary', onClick: (m) => {
+          const f = readForm(m.el); if(!f.title){ toast('제목을 입력하세요', true); return false; }
+          const data = Object.assign({}, id ? x : { createdAt: Date.now(), createdBy: ME.name }, f, { updatedAt: Date.now() }); delete data.id;
+          dbSet('achievements', id || newId(), data); if(!id){ MOD.deadlines.tab = 'ach'; setTimeout(render, 80); }
+        } } ] });
+  },
+  async onclick(e){
+    if(e.target.closest('[data-stop]')) return;
+    const a = e.target.closest('[data-act]');
+    if(a && a.dataset.act === 'achnew') return this.edit(null);
+    if(a && a.dataset.act === 'achcopy'){ toast(await copyText(this.list().map(x => this.line(x)).join('\n')) ? '성과 목록을 복사했습니다' : '복사 실패'); return; }
+    const t = e.target.closest('[data-atype]'); if(t){ this.type = t.dataset.atype; return render(); }
+    const r = e.target.closest('[data-ach]'); if(r) this.edit(r.dataset.ach);
+  }
+};
+(() => {
+  const D = MOD.deadlines; const o = { hdr: D.hdr, render: D.render, onclick: D.onclick, onchange: D.onchange };
+  D.tab = 'dl';
+  D.hdr = function(){ return '<div class="seg"><button data-dtab="dl" class="' + (D.tab === 'dl' ? 'on' : '') + '">마감 트래커</button><button data-dtab="ach" class="' + (D.tab === 'ach' ? 'on' : '') + '">성과 목록</button></div>' + (D.tab === 'dl' ? o.hdr.call(D) : Ach.hdr()); };
+  D.render = function(){ return D.tab === 'dl' ? o.render.call(D) : Ach.render(); };
+  D.onclick = function(e){ const t = e.target.closest('[data-dtab]'); if(t){ D.tab = t.dataset.dtab; return render(); } return D.tab === 'dl' ? o.onclick.call(D, e) : Ach.onclick(e); };
+  D.onchange = function(e){ if(D.tab === 'dl') return o.onchange.call(D, e); };
+})();
 
 /* ---------------- 시작 ---------------- */
 (function boot(){
