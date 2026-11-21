@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.5.2';
+const APP_VERSION = '1.6';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -711,7 +711,7 @@ const MENUS = [
   { key:'calendar',  label:'연구실 일정',   group:'연구실' },
   { key:'timetable', label:'시간표',        group:'연구실' },
   { key:'presence',  label:'재실 현황',     group:'연구실' },
-  { key:'minutes',   label:'회의록·발표',   group:'연구실' },
+  { key:'minutes',   label:'발표 순서',     group:'연구실' },
   { key:'suggest',   label:'건의사항',      group:'연구실' },
   { key:'fund',      label:'연구비 지급신청', group:'연구 관리' },
   { key:'deadlines', label:'마감·성과',     group:'연구 관리' },
@@ -734,7 +734,7 @@ const DEFAULT_PERMS = {
 };
 const PERM_DESC = {
   notices:'공지 작성·수정', calendar:'연구실 일정 등록·수정 (개인 일정은 누구나)', timetable:'시간표 편집',
-  presence:'(재실 상태는 각자 본인 것만 변경)', minutes:'회의록 작성, 발표 순서 관리', fund:'연구비 신청 내역 편집',
+  presence:'(재실 상태는 각자 본인 것만 변경)', minutes:'발표 순서 관리', fund:'연구비 신청 내역 편집',
   deadlines:'마감·성과 항목 등록·수정', equipment:'장비·재고 등록, 구매요청 승인 (예약·구매요청은 누구나)',
   suggest:'건의 답변·상태 변경·삭제 (글쓰기와 공감은 누구나)'
 };
@@ -766,6 +766,21 @@ const S = {
 };
 const vals = o => Object.values(o || {});
 let ME = null, MODE = null, BE = null, AU = null, FB = null;
+let PREVIEW = null;   /* 관리자가 다른 사용자·역할의 화면을 미리 보는 중이면 그 대상 */
+function guardWrites(be){
+  ['set','update','del','batch'].forEach(k => { const f = be[k].bind(be); be[k] = (...a) => PREVIEW ? Promise.reject(new Error('미리보기 중에는 저장되지 않습니다')) : f(...a); });
+}
+function startPreview(target){
+  if(!isAdmin() || PREVIEW) return;
+  PREVIEW = target; ME = Object.assign({ color: hashColor(target.name) }, target);
+  const bar = document.createElement('div'); bar.id = 'previewBar';
+  bar.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99990;background:#1f2233;color:#fff;border-radius:14px;padding:10px 12px 10px 18px;display:flex;gap:12px;align-items:center;font-size:13px;font-weight:600;box-shadow:0 12px 40px rgba(0,0,0,.35);max-width:calc(100vw - 24px)';
+  bar.innerHTML = '<span>👁 미리보기 — <b>' + esc(target.name) + '</b> (' + ROLES[target.role] + ') 화면입니다. 이 상태에서는 저장되지 않습니다.</span><button class="btn small primary" id="pvExit">미리보기 종료</button>';
+  document.body.appendChild(bar);
+  $('#pvExit').onclick = () => { location.hash = '#/admin'; location.reload(); };
+  if(typeof TT !== 'undefined'){ TT.sel = []; TT.edit = false; }
+  syncSubscriptions(); go('dashboard'); render();
+}
 
 /* --- 체험 모드: 이 브라우저(localStorage)에만 저장 --- */
 function makeDemoBackend(){
@@ -914,7 +929,7 @@ function collInto(store, after){
     if(after) after(); scheduleRender();
   };
 }
-const COLL_MENU = { notices:'notices', timetables:'timetable', deadlines:'deadlines', minutes:'minutes', fundProjects:'fund', fundBatches:'fund',
+const COLL_MENU = { notices:'notices', timetables:'timetable', deadlines:'deadlines', fundProjects:'fund', fundBatches:'fund',
                     equipment:'equipment', reservations:'equipment', supplies:'equipment', purchases:'equipment',
                     suggestions:'suggest', achievements:'deadlines' };
 let permSig = '';
@@ -1184,6 +1199,7 @@ async function initMode(mode, cfg){
       return;
     }
   }
+  guardWrites(BE);
   AU.onChange(onAuthUser);
 }
 async function createProfile(user){
@@ -1219,6 +1235,7 @@ async function onAuthUser(user){
   }
   meUnsub = BE.watchDoc('users', user.uid, d => {
     if(!d){ ME = { uid:user.uid, name: user.displayName || user.email, email:user.email, role:'pending' }; showPending(); return; }
+    if(PREVIEW) return;
     const prevRole = ME && ME.role;
     ME = Object.assign({}, d, { uid:user.uid, email: d.email || user.email || '' });
     if(!isMember()){ showPending(); return; }
@@ -1380,14 +1397,6 @@ MOD.dashboard = {
         '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' + PRESENCE.filter(p => cnt[p.k]).map(p => '<span class="chip" style="color:' + p.color + '">' + p.label + ' ' + cnt[p.k] + '</span>').join('') + (cnt['-'] ? '<span class="chip">미확인 ' + cnt['-'] + '</span>' : '') + '</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' + us.map(u => { const p = presenceOf(u); return '<span title="' + esc(u.name + (p && !p.stale ? ' · ' + p.label : '')) + '">' + avatar(u.name, u.color, 'sm', p && !p.stale ? p.color : '#d1d5db') + '</span>'; }).join('') + '</div></div>');
     }
-    if(canView('minutes')){
-      const mine = [];
-      vals(S.minutes).forEach(m => (m.actions || []).forEach((a, i) => { if(!a.done && a.who === ME.name) mine.push({ m, a, i }); }));
-      mine.sort((x, y) => String(x.a.due || '9999').localeCompare(String(y.a.due || '9999')));
-      cards.push('<div class="card"><h3>✅ 내 할 일 (회의록)<button class="more" data-go="minutes">회의록 ›</button></h3>' +
-        (mine.length ? '<div class="list">' + mine.slice(0, 6).map(x => '<div class="li click" data-minute="' + x.m.id + '">' + (x.a.due ? '<span class="dday ' + ddayInfo(x.a.due).cls + '">' + ddayInfo(x.a.due).label + '</span>' : '') + '<span class="t">' + esc(x.a.text) + '</span><span class="s">' + esc(x.m.title || '') + '</span></div>').join('') + '</div>'
-                     : '<div class="hint">배정된 할 일이 없습니다.</div>') + '</div>');
-    }
     if(canView('equipment')){
       const rs = vals(S.reservations).filter(r => r.date === t).sort((a,b) => a.start.localeCompare(b.start));
       const pend = vals(S.purchases).filter(p => p.status === '요청');
@@ -1417,7 +1426,6 @@ MOD.dashboard = {
     const p = e.target.closest('[data-pres]'); if(p) return setMyPresence(p.dataset.pres);
     const n = e.target.closest('[data-notice]'); if(n) return Notice.open(n.dataset.notice);
     const ev = e.target.closest('[data-ev]'); if(ev && ev.dataset.ev) return Cal.openEvent(ev.dataset.ev);
-    const mi = e.target.closest('[data-minute]'); if(mi) return Minutes.view(mi.dataset.minute);
   }
 };
 
@@ -1548,6 +1556,7 @@ const Cal = {
   color(ev){ return ev.type === 'lab' ? (LAB_CATS[ev.cat] || '#4f46e5') : personColor(ev.ownerName || userName(ev.uid)); },
   visible(ev){
     if(this.f.onlyMe && !(ev.uid === ME.uid && ev.type === 'personal') && !(ev.attendees || []).includes(ME.name)) return false;
+    if(PREVIEW && ev.visibility === 'private') return false;
     if(ev.type === 'lab') return this.f.lab;
     if(ev.uid === ME.uid) return this.f.mine;
     return this.f.shared;
@@ -1559,6 +1568,7 @@ const Cal = {
     const push = (d, it) => { (map[d] = map[d] || []).push(it); };
     for(const ev of vals(S.events)){
       if(!all && !this.visible(ev)) continue;
+      if(PREVIEW && ev.visibility === 'private') continue;
       for(const o of this.occ(ev, from, to)){
         for(let d = o.s < from ? from : o.s, g = 0; d <= o.e && d <= to && g < 400; d = addDays(d, 1), g++){
           push(d, { kind:'event', ev, title: (ev.type === 'personal' ? (ev.visibility === 'private' ? '🔒 ' : '') + (ev.uid === ME.uid ? '' : '[' + (ev.ownerName || userName(ev.uid)) + '] ') : '') + ev.title, who: ev.attendees || [], mine: (ev.attendees || []).includes(ME.name),
@@ -1785,7 +1795,8 @@ MOD.timetable = {
   render(){
     const t = TT.current();
     if(!t) return '<div class="empty">아직 시간표가 없습니다.' + (canEdit('timetable') ? '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center"><button class="btn primary" data-act="newblank">빈 시간표 만들기</button>' + (isAdmin() ? '<button class="btn" data-go="backup">초기 데이터 불러오기</button>' : '') + '</div>' : '') + '</div>';
-    const people = Array.from(new Set(['교수님'].concat(rosterNames(['대학원생','학부생','기타']))));
+    const profs = rosterNames(['교수']);
+    const people = Array.from(new Set((profs.length ? profs : ['교수님']).concat(rosterNames(['대학원생','학부생','기타']))));
     const tIdx = TT.todayIdx(), nowP = TT.nowPeriod(t);
     let h = '<div class="toolbar"><span class="small muted" style="font-weight:700">사람 선택</span>' +
       people.map(n => '<span class="chip sel' + (TT.sel.includes(n) ? ' on' : '') + '" data-person="' + esc(n) + '">' + esc(n) + '</span>').join('') +
@@ -2252,11 +2263,7 @@ const Minutes = {
   savePres(p){ S.presentation = p; return dbSet('settings', 'presentation', p); }
 };
 MOD.minutes = {
-  hdr(){
-    return '<div class="seg"><button data-tab="list" class="' + (Minutes.tab === 'list' ? 'on' : '') + '">회의록</button><button data-tab="pres" class="' + (Minutes.tab === 'pres' ? 'on' : '') + '">발표 순서</button></div>' +
-      (Minutes.tab === 'list' && canEdit('minutes') ? '<button class="btn primary small" data-act="new">＋ 새 회의록</button>' : '');
-  },
-  render(){ return Minutes.tab === 'pres' ? this.presView() : this.listView(); },
+  render(){ return this.presView(); },
   listView(){
     const q = Minutes.q;
     const list = vals(S.minutes).filter(m => !q || ((m.title || '') + (m.body || '') + (m.attendees || []).join(' ')).includes(q)).sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.createdAt || 0) - (a.createdAt || 0));
@@ -2276,7 +2283,8 @@ MOD.minutes = {
     let h = '<div class="grid2"><div class="card"><h3>🎤 다음 발표</h3>' + (nx.length ? '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">' + nx.map(n => '<div style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800">' + avatar(n, personColor(n)) + esc(n) + '</div>').join('') + '</div>' : '<div class="hint">발표 순서를 먼저 정하세요.</div>') +
       (ed && p.order.length ? '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="advance">발표 완료 → 다음 차례로</button><button class="btn small" data-act="back">한 칸 되돌리기</button>' +
         '<label class="small muted" style="display:flex;align-items:center;gap:6px;margin-left:auto">한 번에 <select data-per>' + [1,2,3].map(n => opt(n, n + '명', p.per || 1)).join('') + '</select></label></div>' : '') +
-      ((p.history || []).length ? '<h4 style="margin:16px 0 6px;font-size:13px">최근 기록</h4><div class="list">' + p.history.slice(-8).reverse().map(x => '<div class="li"><span class="s">' + fmtDate(x.date) + '</span><span class="t">' + esc(x.names.join(', ')) + '</span></div>').join('') + '</div>' : '') + '</div>';
+      ((p.history || []).length ? '<h4 style="margin:16px 0 6px;font-size:13px;display:flex;align-items:center">발표 기록 <span class="muted small" style="font-weight:500;margin-left:6px">' + p.history.length + '건</span>' + (ed ? '<button class="btn small ghost-danger" data-act="hclear" style="margin-left:auto">전체 삭제</button>' : '') + '</h4><div class="list" style="max-height:320px;overflow:auto">' +
+        p.history.map((x, i) => ({ x, i })).reverse().map(({ x, i }) => '<div class="li"><span class="s">' + fmtDate(x.date) + '</span><span class="t">' + esc((x.names || []).join(', ')) + '</span>' + (ed ? '<button class="rowdel" data-hdel="' + i + '" title="이 기록 삭제">✕</button>' : '') + '</div>').join('') + '</div>' : '') + '</div>';
     h += '<div class="card"><h3>순서' + (ed ? '<button class="more" data-act="shuffle">무작위 섞기</button>' : '') + '</h3><div class="queue">' +
       (p.order.length ? p.order.map((n, i) => { const cur = nx.includes(n) && ((i - p.idx + p.order.length) % p.order.length) < (p.per || 1);
         return '<div class="q' + (cur ? ' cur' : '') + '"><span class="qi">' + (i + 1) + '</span>' + avatar(n, personColor(n), 'sm') + esc(n) +
@@ -2296,8 +2304,11 @@ MOD.minutes = {
       if(act === 'advance'){ const names = Minutes.nextPresenters(); p.history = (p.history || []).concat({ date: todayStr(), names }).slice(-40); p.idx = (p.idx + (p.per || 1)) % p.order.length; Minutes.savePres(p); return render(); }
       if(act === 'back'){ p.idx = (p.idx - (p.per || 1) + p.order.length * 5) % p.order.length; Minutes.savePres(p); return render(); }
       if(act === 'shuffle'){ for(let i = p.order.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [p.order[i], p.order[j]] = [p.order[j], p.order[i]]; } p.idx = 0; Minutes.savePres(p); return render(); }
+      if(act === 'hclear'){ confirmBox('발표 기록 ' + (p.history || []).length + '건을 모두 삭제할까요? (발표 순서는 그대로 유지됩니다)', '전체 삭제', true).then(ok => { if(ok){ p.history = []; Minutes.savePres(p); render(); } }); return; }
       if(act === 'fillgrad'){ rosterNames(['대학원생']).forEach(n => { if(!p.order.includes(n)) p.order.push(n); }); Minutes.savePres(p); return render(); }
     }
+    const hd = e.target.closest('[data-hdel]');
+    if(hd && canEdit('minutes')){ p.history = (p.history || []).slice(); p.history.splice(Number(hd.dataset.hdel), 1); Minutes.savePres(p); return render(); }
     const up = e.target.closest('[data-up]'), dn = e.target.closest('[data-down]'), rm = e.target.closest('[data-rm]'), si = e.target.closest('[data-setidx]');
     if(up || dn){ const i = Number((up || dn).dataset[up ? 'up' : 'down']); const j = i + (up ? -1 : 1); if(j < 0 || j >= p.order.length) return; [p.order[i], p.order[j]] = [p.order[j], p.order[i]]; Minutes.savePres(p); return render(); }
     if(rm){ const i = Number(rm.dataset.rm); p.order.splice(i, 1); if(p.idx >= p.order.length) p.idx = 0; Minutes.savePres(p); return render(); }
@@ -2343,9 +2354,11 @@ MOD.admin = {
         '<td><input data-uf="position" data-uid="' + u.id + '" value="' + esc(u.position || '') + '" placeholder="예: 박사과정" style="width:110px"></td>' +
         '<td><input type="color" data-uf="color" data-uid="' + u.id + '" value="' + esc(u.color || hashColor(u.name)) + '" style="width:40px;height:30px;padding:2px"></td>' +
         '<td class="muted small nowrap">' + (u.createdAt ? ymd(new Date(u.createdAt)) : '') + '</td>' +
-        '<td class="nowrap">' + (self ? '<span class="chip accent">나</span>' : '<button class="btn small" data-revoke="' + u.id + '">접근 해제</button>') + '</td></tr>';
+        '<td class="nowrap">' + (self ? '<span class="chip accent">나</span>' : '<button class="btn small" data-preview="' + u.id + '" title="이 사람에게 보이는 화면을 확인합니다">👁 미리보기</button> <button class="btn small" data-revoke="' + u.id + '">접근 해제</button>') + '</td></tr>';
     }
     h += '</tbody></table></div>';
+    h += '<div class="card"><h3>👁 화면 미리보기</h3><div class="small muted" style="margin-bottom:10px;line-height:1.7">다른 구성원에게 프로그램이 어떻게 보이는지 확인합니다. 메뉴·버튼·시간표 강조가 그 사람 기준으로 바뀌고, 미리보기 중에는 아무것도 저장되지 않습니다. 특정 사람의 화면은 위 표의 [👁 미리보기]를 누르세요. (다른 사람의 비밀 일정은 미리보기에서도 보이지 않습니다)</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' + ['grad','intern','viewer'].map(r => '<button class="btn" data-prole="' + r + '">' + ROLES[r] + ' 화면 보기</button>').join('') + '</div></div>';
     h += '<div class="card"><h3>역할 안내</h3><div class="small" style="line-height:1.9">' +
       '<b>관리자</b> — 모든 메뉴 편집, 구성원 승인·역할 변경, 메뉴 권한 설정, 백업·복원<br>' +
       '<b>대학원생</b> · <b>학부연구생</b> — [메뉴 권한] 탭에서 정한 대로 보기/편집. 개인 일정·장비 예약·구매 요청·내 재실 상태는 언제나 가능<br>' +
@@ -2401,6 +2414,10 @@ MOD.admin = {
     }
     const rj = e.target.closest('[data-reject]');
     if(rj){ confirmBox('가입 신청을 거절할까요?', '거절', true).then(ok => ok && dbDel('users', rj.dataset.reject)); return; }
+    const pv = e.target.closest('[data-preview]');
+    if(pv){ const u = S.users[pv.dataset.preview]; if(u) startPreview(Object.assign({}, u, { uid: u.id })); return; }
+    const pr = e.target.closest('[data-prole]');
+    if(pr){ startPreview({ uid:'__preview', name: ROLES[pr.dataset.prole] + ' (예시)', email:'', role: pr.dataset.prole }); return; }
     const rv = e.target.closest('[data-revoke]');
     if(rv){ const u = S.users[rv.dataset.revoke]; confirmBox(esc(u.name) + '님의 접근을 해제할까요? (승인대기 상태로 바뀌며 다시 승인할 수 있습니다)', '접근 해제', true).then(ok => ok && dbUpdate('users', u.id, { role:'pending' })); return; }
     const tr = e.target.closest('[data-toroster]');
@@ -2443,7 +2460,7 @@ MOD.admin = {
 /* =================================================================
    백업 · 복원
    ================================================================= */
-const BACKUP_COLLS = { users:'구성원 계정', notices:'공지사항', events:'일정', timetables:'시간표', deadlines:'마감 트래커', minutes:'회의록',
+const BACKUP_COLLS = { users:'구성원 계정', notices:'공지사항', events:'일정', timetables:'시간표', deadlines:'마감 트래커',
   fundProjects:'연구비 과제', fundBatches:'연구비 신청차수', equipment:'장비', reservations:'장비 예약', supplies:'소모품', purchases:'구매 요청', suggestions:'건의사항', achievements:'연구 성과', settings:'설정(명단·권한·발표순서)' };
 const Backup = {
   build(){
