@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.3';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -2840,7 +2840,7 @@ const Fund = (() => {
     '<li>권한: 기본값은 관리자·대학원생 편집, 나머지는 열람만 가능 (관리자가 <b>구성원·권한 → 메뉴 권한</b>에서 변경).</li>' +
     '<li>백업은 왼쪽 메뉴 <b>백업·복원</b>에서 전체 데이터와 함께 받습니다. 기존 프로그램의 백업 JSON도 거기서 가져올 수 있습니다.</li></ul>' +
     '<h3>5. 증빙 등록과 공유폴더</h3><ul><li><b>＋ 증빙 등록</b>(오른쪽 위) — 과제·구분·차수·비목·날짜·금액·내역을 적고 파일을 끌어다 놓으면 <b>내역 한 줄이 만들어지고 파일이 공유폴더에 자동 저장</b>됩니다. 화면 아무 곳에나 파일을 끌어다 놓아도 이 창이 열립니다. 직전에 고른 과제·차수·비목은 기억됩니다.</li>' +
-    '<li>저장 위치: <code>연구비_첨부 / 과제 / RND카드·계좌이체 / 신청차수 / 비목 / 날짜_내역_금액_종류.pdf</code>. 내역의 날짜·금액·비목이나 차수 이름을 고치면 파일도 따라 옮겨집니다.</li>' +
+    '<li>저장 위치: <code>연구비_첨부 / 과제 / RND카드·계좌이체 / 신청차수 / 비목 / 날짜_내역_금액 / 종류_내역.pdf</code> (내역마다 폴더 하나). 내역의 날짜·금액·비목이나 차수 이름을 고치면 파일도 따라 옮겨집니다.</li>' +
     '<li><b>📁 증빙 폴더</b> — PC마다 한 번, 연구실 NAS의 같은 폴더를 연결합니다. 모두 같은 폴더를 보므로 누가 올린 파일이든 바로 열립니다.</li>' +
     '<li>파일 종류(매출전표·거래명세서·검수사진 등)를 고르면 <b>전자증빙 체크가 자동</b>으로 됩니다. 기존처럼 표의 📎이나 행에 직접 끌어다 놓기도 가능합니다.</li>' +
     '<li><b>📋 신청용</b>(차수마다) — 학교 시스템에 옮겨 적을 때 칸을 클릭하면 값이 복사되고, 차수 폴더를 바로 열 수 있습니다. 입력을 마친 줄은 [입력완료]에 체크하세요.</li>' +
@@ -3103,23 +3103,34 @@ const Fund = (() => {
     const dup = state.batches.some(x => x !== b && x.projectId === b.projectId && x.kind === b.kind && x.name === b.name);
     return fsSan(dup ? (b.name + '_' + (b.month || '월미정')) : b.name, 60);
   }
-  /* 저장 폴더: 연구비_첨부 / 과제 / RND카드|계좌이체 / 신청차수 / 비목 */
-  function attachDirParts(b, e){
-    const p = state.projects.find(x => x.id === b.projectId);
-    const parts = ['연구비_첨부', fsSan(p ? p.short : '기타', 40), KIND_DIR[b.kind] || '기타', batchDirName(b)];
-    if(e) parts.push(itemDir(e)); return parts;
-  }
-  /* 파일 이름: 날짜_증빙내역_금액_종류.확장자 (같은 내역·같은 종류가 여러 개면 번호를 붙임) */
-  function fileTargetName(b, e, meta){
-    const nm = String(meta.name || ''); const dot = nm.lastIndexOf('.');
-    const ext = dot > 0 ? nm.slice(dot).toLowerCase().replace(/[^.\w]/g, '').slice(0, 10) : '';
+  /* 저장 폴더: 연구비_첨부 / 과제 / RND카드|계좌이체 / 신청차수 / 비목 / 날짜_내역_금액 */
+  function entryFolder(b, e){
     const base = entryBase(e);
     const twins = (b.entries || []).filter(x => itemDir(x) === itemDir(e) && entryBase(x) === base);
     const ei = twins.indexOf(e);
+    return base + (ei > 0 ? '_#' + (ei + 1) : '');
+  }
+  function attachDirParts(b, e){
+    const p = state.projects.find(x => x.id === b.projectId);
+    const parts = ['연구비_첨부', fsSan(p ? p.short : '기타', 40), KIND_DIR[b.kind] || '기타', batchDirName(b)];
+    if(e){ parts.push(itemDir(e)); parts.push(entryFolder(b, e)); } return parts;
+  }
+  const fileExt = meta => { const nm = String(meta.name || ''); const dot = nm.lastIndexOf('.'); return dot > 0 ? nm.slice(dot).toLowerCase().replace(/[^.\w]/g, '').slice(0, 10) : ''; };
+  /* 파일 이름: 종류_증빙내역.확장자 (같은 종류가 여러 개면 번호를 붙임) — 날짜·금액은 폴더 이름에 있음 */
+  function fileTargetName(b, e, meta){
     const kind = kindOf(meta);
     const same = (e.files || []).filter(m => kindOf(m) === kind);
     let fi = same.findIndex(m => m.id === meta.id); if(fi < 0) fi = same.length;
-    return fsSan(base + (ei > 0 ? '_#' + (ei + 1) : '') + '_' + kind + (fi > 0 ? '(' + (fi + 1) + ')' : ''), 130) + ext;
+    return fsSan(kind + '_' + fsSan(e.desc || '내역', 30) + (fi > 0 ? '(' + (fi + 1) + ')' : ''), 60) + fileExt(meta);
+  }
+  /* v1.1~1.2 규칙(비목 폴더 바로 아래, 긴 파일 이름) — 기존 파일을 찾아 옮기기 위해 남겨 둠 */
+  function relV11(b, e, meta){
+    const p = state.projects.find(x => x.id === b.projectId);
+    const base = entryBase(e);
+    const twins = (b.entries || []).filter(x => itemDir(x) === itemDir(e) && entryBase(x) === base); const ei = twins.indexOf(e);
+    const kind = kindOf(meta); const same = (e.files || []).filter(m => kindOf(m) === kind); let fi = same.findIndex(m => m.id === meta.id); if(fi < 0) fi = same.length;
+    return ['연구비_첨부', fsSan(p ? p.short : '기타', 40), KIND_DIR[b.kind] || '기타', batchDirName(b), itemDir(e)].join('/') + '/' +
+      fsSan(base + (ei > 0 ? '_#' + (ei + 1) : '') + '_' + kind + (fi > 0 ? '(' + (fi + 1) + ')' : ''), 130) + fileExt(meta);
   }
   const computedRel = (b, e, meta) => attachDirParts(b, e).join('/') + '/' + fileTargetName(b, e, meta);
   const fileLocalRel = (b, e, meta) => meta.rel || getLocalPath(meta.id) || computedRel(b, e, meta);
@@ -3129,7 +3140,7 @@ const Fund = (() => {
     const batchDirs = [projDir + '/' + batchDirName(b), projDir + '/' + fsSan((b.month || '월미정') + '_' + b.name, 60)];
     const entryDirs = [entryDirName(e), entryDirNameLegacy(e)];
     const nm = fsSan(meta.name, 80); const names = [nm, meta.id + '_' + nm];
-    const list = [meta.rel, getLocalPath(meta.id), computedRel(b, e, meta)];
+    const list = [meta.rel, getLocalPath(meta.id), computedRel(b, e, meta), relV11(b, e, meta)];
     for(const bd of batchDirs){ for(const ed of entryDirs) for(const n of names) list.push(bd + '/' + ed + '/' + n); for(const n of names) list.push(bd + '/' + n); }
     return list.filter((v, i) => v && !v.startsWith('(') && list.indexOf(v) === i);
   }
@@ -3333,7 +3344,7 @@ const Fund = (() => {
     $('#attachAddSec').style.display = ed ? '' : 'none';
     if(!hasFolder){ $('#pathBox').style.display = 'none'; $('#pathSetup').style.display = 'none'; }
     const shareTxt = !SERVER_FILES() ? '체험 모드에서는 파일이 이 컴퓨터에만 저장됩니다.' : serverCopyOn() ? '서버에도 사본(8MB 이하)이 저장됩니다.' : (attachRoot ? '' : '폴더를 연결하지 않으면 파일은 서버(8MB 이하)에 저장됩니다.');
-    if(attachRoot){ note.innerHTML = '✓ 증빙 폴더 연결됨 (' + esc(attachRoot.name) + ') — 파일이 <b>과제 / RND카드·계좌이체 / 신청차수 / 비목</b> 폴더에 <b>날짜_내역_금액_종류</b> 이름으로 자동 저장됩니다.<br>' + shareTxt; pick.textContent = '증빙 폴더 변경'; pick.style.display = ''; }
+    if(attachRoot){ note.innerHTML = '✓ 증빙 폴더 연결됨 (' + esc(attachRoot.name) + ') — 파일이 <b>과제 / RND카드·계좌이체 / 신청차수 / 비목 / 날짜_내역_금액</b> 폴더에 <b>종류_내역</b> 이름으로 자동 저장됩니다.<br>' + shareTxt; pick.textContent = '증빙 폴더 변경'; pick.style.display = ''; }
     else if(attachPendingRoot){ note.innerHTML = '이전에 연결한 폴더가 있습니다. <b>첨부 폴더 다시 연결</b>을 누르면 계속 사용됩니다.<br>' + shareTxt; pick.textContent = '첨부 폴더 다시 연결'; pick.style.display = ''; }
     else if(FS_OK){ note.innerHTML = '<b>증빙 폴더 연결</b>로 연구실 공유폴더(NAS)를 한 번 지정하면 증빙이 폴더별로 자동 정리됩니다.<br>' + shareTxt; pick.textContent = '증빙 폴더 연결'; pick.style.display = ''; }
     else{ note.innerHTML = '이 브라우저는 폴더 연결을 지원하지 않습니다 (Chrome/Edge 권장).<br>' + shareTxt; pick.style.display = 'none'; }
@@ -3500,7 +3511,7 @@ const UNINSTALL_BAT_B64 = 'QGVjaG8gb2ZmDQpjaGNwIDk0OSA+bnVsDQpyZWcgZGVsZXRlICJIS
     const kind0 = curP ? (ui.projTab[curP.id] || 'rnd') : (last.kind || 'rnd');
     const files = (initFiles || []).map(f => ({ file:f, kind: guessKind(f) }));
     const m = openModal({ title:'증빙 등록', wide:true, sticky:true,
-      sub:'파일과 정보를 한 번에 넣으면 내역이 만들어지고, 파일은 공유폴더의 <b>과제 / 구분 / 차수 / 비목</b> 폴더에 자동으로 저장됩니다.',
+      sub:'파일과 정보를 한 번에 넣으면 내역이 만들어지고, 파일은 공유폴더의 <b>과제 / 구분 / 차수 / 비목 / 내역</b> 폴더에 자동으로 저장됩니다.',
       body: '<div class="form">' +
         fld('과제', '<select name="projectId">' + state.projects.map(p => opt(p.id, p.short || p.name, pid0)).join('') + '</select>') +
         fld('구분', '<select name="kind">' + opt('rnd', 'RND카드', kind0) + opt('bank', '계좌이체', kind0) + '</select>') +
@@ -3539,7 +3550,7 @@ const UNINSTALL_BAT_B64 = 'QGVjaG8gb2ZmDQpjaGNwIDk0OSA+bnVsDQpyZWcgZGVsZXRlICJIS
           const { b, e } = tempBE(); if(!b) return;
           const dir = attachDirParts(b, e).join(' / ');
           $('#qPath', el).innerHTML = '📁 <b>저장 위치</b> ' + (attachRoot ? esc(attachRoot.name) + ' / ' : '') + esc(dir) + '<br>📄 <b>파일 이름</b> ' +
-            (files.length ? files.map(x => esc(fileTargetName(b, e, { id:'x', name:x.file.name, kind:x.kind }))).join(', ') : esc(entryBase(e)) + '_종류.확장자') +
+            (files.length ? files.map((x, k) => esc(fileTargetName(b, Object.assign({}, e, { files: files.slice(0, k).map((y, n) => ({ id:'p' + n, name:y.file.name, kind:y.kind })) }), { id:'x', name:x.file.name, kind:x.kind }))).join(', ') : '종류_' + esc(fsSan(e.desc || '내역', 30)) + '.확장자') +
             (attachRoot ? '' : '<br><span style="color:#b45309">⚠ 증빙 폴더가 연결되지 않아 ' + (SERVER_FILES() ? '서버에 저장됩니다(8MB 이하).' : '다운로드 폴더에 저장됩니다.') + ' 헤더의 [📁 증빙 폴더]에서 연결하세요.</span>');
         };
         const drawFiles = () => {
@@ -3616,7 +3627,7 @@ const UNINSTALL_BAT_B64 = 'QGVjaG8gb2ZmDQpjaGNwIDk0OSA+bnVsDQpyZWcgZGVsZXRlICJIS
         (attachRoot ? '<button class="btn" id="fmBrowse">내용 보기</button><button class="btn" id="fmOpen">📂 탐색기로 열기</button>' + (ed ? '<button class="btn" id="fmTidy">전체 폴더 정리</button>' : '') : '') + '</div><div class="msg" id="fmMsg" style="margin-top:8px;line-height:1.6"></div>' +
         '<div class="hint" style="margin-top:6px">버튼으로 안 되면: 탐색기에서 <b>폴더를 이 창 위로 끌어다 놓아도</b> 연결됩니다.</div>' +
         '<div class="note" style="margin-top:12px;line-height:1.75"><b>연결 방법 (PC마다 한 번)</b><br>① 연구실 NAS를 네트워크 드라이브(예: Z:)로 연결해 둡니다.<br>② [공유폴더 연결]을 누르고 <b>모두가 같은 폴더</b>를 고릅니다 (예: <code>Z:\\연구비증빙</code>). 드라이브 맨 위(Z:\\)는 브라우저가 막으므로 하위 폴더를 하나 만들어 선택하세요.<br>③ 권한 창에서 [수정 허용]. Chrome이 "방문할 때마다 허용"을 물으면 선택해 두면 다음부터 묻지 않습니다.<br>' +
-        '그 폴더 안에 <code>연구비_첨부 / 과제 / RND카드·계좌이체 / 신청차수 / 비목 / 날짜_내역_금액_종류.pdf</code> 구조가 자동으로 만들어집니다.</div>' +
+        '그 폴더 안에 <code>연구비_첨부 / 과제 / RND카드·계좌이체 / 신청차수 / 비목 / 날짜_내역_금액 / 종류_내역.pdf</code> 구조가 자동으로 만들어집니다.</div>' +
         '<h4>탐색기로 바로 열기 (선택)</h4><div class="hint" style="margin-bottom:6px">연결한 폴더의 전체 경로를 적어 두면 [📂 폴더 열기]·[경로 복사]를 쓸 수 있습니다. 탐색기에서 그 폴더를 열고 주소창(Ctrl+L)의 경로를 붙여넣으세요.</div>' +
         '<div class="row"><input id="fmBase" value="' + esc(basePath) + '" placeholder="예: Z:\\연구비증빙" style="flex:1;min-width:240px"><button class="btn small" id="fmBaseSave">경로 저장</button><button class="btn small" id="fmBat">🧰 설치 파일 받기</button></div>' +
         (isAdmin() && MODE === 'fire' ? '<h4>서버 사본 (관리자)</h4><label class="chk" style="font-size:13px;display:flex;gap:8px"><input type="checkbox" id="fmServer"' + (serverCopyOn() ? ' checked' : '') + '> <span>공유폴더 외에 서버(Firebase)에도 사본 저장 — NAS에 접속할 수 없는 곳에서도 파일을 열 수 있지만 무료 저장공간(1GB)을 씁니다. 꺼 두면 폴더를 연결하지 않은 PC에서 올린 파일만 서버에 저장됩니다.</span></label>' : ''),
@@ -3636,7 +3647,7 @@ const UNINSTALL_BAT_B64 = 'QGVjaG8gb2ZmDQpjaGNwIDk0OSA+bnVsDQpyZWcgZGVsZXRlICJIS
           afterPick(was);
         });
         if($('#fmBrowse', el)) $('#fmBrowse', el).onclick = async () => { browseModal.classList.add('open'); document.body.appendChild(browseModal); await browseTo(['연구비_첨부']); };
-        if($('#fmTidy', el)) $('#fmTidy', el).onclick = async () => { if(await confirmBox('모든 증빙 파일을 현재 규칙(과제/구분/차수/비목)에 맞게 옮기고 이름을 바꿉니다. 어느 내역에도 속하지 않는 파일은 ' + QUARANTINE + ' 폴더로 모읍니다(삭제하지 않음). 진행할까요?', '정리')) reorganizeFolder(false, msg); };
+        if($('#fmTidy', el)) $('#fmTidy', el).onclick = async () => { if(await confirmBox('모든 증빙 파일을 현재 규칙(과제/구분/차수/비목/내역)에 맞게 옮기고 이름을 바꿉니다. 어느 내역에도 속하지 않는 파일은 ' + QUARANTINE + ' 폴더로 모읍니다(삭제하지 않음). 진행할까요?', '정리')) reorganizeFolder(false, msg); };
         if($('#fmOpen', el)) $('#fmOpen', el).onclick = () => { if(!basePath){ msg('아래에 폴더 전체 경로를 먼저 저장하세요.', false); $('#fmBase', el).focus(); return; } launchExplorer(winPathFor(['연구비_첨부']), msg); };
         $('#fmBaseSave', el).onclick = () => { basePath = $('#fmBase', el).value.trim(); try{ localStorage.setItem(BASE_PATH_KEY, basePath); }catch(e){} msg('✓ 경로를 저장했습니다.', true); };
         $('#fmBat', el).onclick = () => { downloadBat('폴더열기_설치.bat', INSTALL_BAT_B64); msg('✓ 내려받았습니다. 한 번 실행하면 [폴더 열기]가 탐색기를 바로 엽니다.', true); };
