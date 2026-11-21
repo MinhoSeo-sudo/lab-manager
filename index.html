@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.3';
+const APP_VERSION = '1.4';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -1344,7 +1344,7 @@ MOD.dashboard = {
     if(canView('calendar')){
       const occ = Cal.items(t, t);
       cards.push('<div class="card"><h3>📅 오늘 일정<button class="more" data-go="calendar">달력 ›</button></h3>' +
-        (occ.length ? '<div class="list">' + occ.map(o => '<div class="li click" data-ev="' + esc(o.ev ? o.ev.id : '') + '">' + Cal.dot(o) + '<span class="t">' + esc(o.title) + '</span><span class="s">' + esc(o.timeLabel) + '</span></div>').join('') + '</div>'
+        (occ.length ? '<div class="list">' + occ.map(o => '<div class="li click" data-ev="' + esc(o.ev ? o.ev.id : '') + '">' + Cal.dot(o) + '<span class="t">' + esc(o.title) + '</span>' + Cal.who(o) + '<span class="s">' + esc(o.timeLabel) + '</span></div>').join('') + '</div>'
                     : '<div class="hint">오늘 등록된 일정이 없습니다.</div>') + '</div>');
     }
     if(canView('timetable')){
@@ -1540,6 +1540,7 @@ const Cal = {
   },
   color(ev){ return ev.type === 'lab' ? (LAB_CATS[ev.cat] || '#4f46e5') : personColor(ev.ownerName || userName(ev.uid)); },
   visible(ev){
+    if(this.f.onlyMe && !(ev.uid === ME.uid && ev.type === 'personal') && !(ev.attendees || []).includes(ME.name)) return false;
     if(ev.type === 'lab') return this.f.lab;
     if(ev.uid === ME.uid) return this.f.mine;
     return this.f.shared;
@@ -1553,7 +1554,7 @@ const Cal = {
       if(!all && !this.visible(ev)) continue;
       for(const o of this.occ(ev, from, to)){
         for(let d = o.s < from ? from : o.s, g = 0; d <= o.e && d <= to && g < 400; d = addDays(d, 1), g++){
-          push(d, { kind:'event', ev, title: (ev.type === 'personal' ? (ev.visibility === 'private' ? '🔒 ' : '') + (ev.uid === ME.uid ? '' : '[' + (ev.ownerName || userName(ev.uid)) + '] ') : '') + ev.title,
+          push(d, { kind:'event', ev, title: (ev.type === 'personal' ? (ev.visibility === 'private' ? '🔒 ' : '') + (ev.uid === ME.uid ? '' : '[' + (ev.ownerName || userName(ev.uid)) + '] ') : '') + ev.title, who: ev.attendees || [], mine: (ev.attendees || []).includes(ME.name),
                     color: this.color(ev), timeLabel: this.timeLabel(ev), sortKey: (ev.allDay || !ev.startTime ? '0' : '1' + ev.startTime) });
         }
       }
@@ -1569,9 +1570,11 @@ const Cal = {
   dot(o){ return '<i style="width:8px;height:8px;border-radius:50%;background:' + o.color + ';flex-shrink:0;display:inline-block"></i>'; },
   chip(o){
     const attr = o.kind === 'event' ? 'data-evid="' + o.ev.id + '"' : o.kind === 'dl' ? 'data-dl="' + o.dl.id + '"' : 'data-go="equipment"';
-    return '<span class="ev" ' + attr + ' style="background:' + o.color + '1c;border-left-color:' + o.color + ';color:#22263a" title="' + esc(o.timeLabel + ' ' + o.title) + '">' +
-      (o.kind === 'event' && o.timeLabel !== '종일' ? '<b style="font-weight:700;color:' + o.color + '">' + o.timeLabel.slice(0, 5) + '</b> ' : '') + esc(o.title) + '</span>';
+    return '<span class="ev" ' + attr + ' style="background:' + o.color + '1c;border-left-color:' + o.color + ';color:#22263a" title="' + esc(o.timeLabel + ' ' + o.title + (o.who && o.who.length ? ' — 참여: ' + o.who.join(', ') : '')) + '">' +
+      (o.kind === 'event' && o.timeLabel !== '종일' ? '<b style="font-weight:700;color:' + o.color + '">' + o.timeLabel.slice(0, 5) + '</b> ' : '') + (o.mine ? '<b title="내가 참여">●</b> ' : '') + esc(o.title) + (o.who && o.who.length ? ' <span style="opacity:.65;font-weight:500">· ' + esc(this.whoShort(o.who)) + '</span>' : '') + '</span>';
   },
+  whoShort(a){ return a.length <= 3 ? a.join(', ') : a.slice(0, 2).join(', ') + ' 외 ' + (a.length - 2) + '명'; },
+  who(o){ return o.who && o.who.length ? '<span class="s" title="' + esc(o.who.join(', ')) + '" style="display:inline-flex;gap:2px;align-items:center">' + o.who.slice(0, 5).map(n => avatar(n, personColor(n), 'sm')).join('') + (o.who.length > 5 ? '+' + (o.who.length - 5) : '') + '</span>' : ''; },
   canModify(ev){ return ev.type === 'lab' ? canEdit('calendar') : (ev.uid === ME.uid && canAct()); },
   openEvent(id){
     const ev = S.events[id]; if(!ev) return;
@@ -1579,6 +1582,7 @@ const Cal = {
     openModal({ title: ev.title, sub: (ev.type === 'lab' ? '연구실 일정 · ' + esc(ev.cat || '') : '개인 일정 · ' + esc(ev.ownerName || userName(ev.uid))),
       body: '<div class="prewrap">' + '📅 ' + fmtDateLong(ev.start) + (ev.end && ev.end !== ev.start ? ' ~ ' + fmtDateLong(ev.end) : '') + ' · ' + this.timeLabel(ev) +
         (ev.repeat === 'weekly' ? '\n🔁 매주 반복' + (ev.repeatUntil ? ' (~' + ev.repeatUntil + ')' : '') : '') +
+        (ev.attendees && ev.attendees.length ? '\n👥 참여: ' + esc(ev.attendees.join(', ')) : '') +
         (ev.location ? '\n📍 ' + esc(ev.location) : '') + (ev.memo ? '\n\n' + linkify(ev.memo) : '') + '</div>' });
   },
   edit(id, date){
@@ -1597,6 +1601,9 @@ const Cal = {
       '<div data-time>' + fld('종료 시간', '<input type="time" name="endTime" value="' + esc(ev.endTime || '') + '">') + '</div>' +
       fld('반복', '<select name="repeat">' + opt('none', '반복 안 함', ev.repeat) + opt('weekly', '매주', ev.repeat) + '</select>') +
       '<div data-rep>' + fld('반복 종료일', '<input type="date" name="repeatUntil" value="' + esc(ev.repeatUntil || '') + '">') + '</div>' +
+      '<div class="full"><label class="fl">참여 인원 <span style="font-weight:500">— 달력에 이름이 함께 표시됩니다</span> ' +
+        '<button type="button" class="btn small" data-pick="all">전원</button> <button type="button" class="btn small" data-pick="대학원생">대학원생</button> <button type="button" class="btn small" data-pick="학부생">학부생</button> <button type="button" class="btn small" data-pick="none">해제</button></label>' +
+        namePicker('attendees', ev.attendees || [], ev.attendees || []) + '</div>' +
       fld('장소', '<input name="location" value="' + esc(ev.location || '') + '">', true) +
       fld('메모', '<textarea name="memo">' + esc(ev.memo || '') + '</textarea>', true) + '</div>';
     openModal({ title: id ? '일정 수정' : '일정 추가', body,
@@ -1609,6 +1616,11 @@ const Cal = {
         };
         $('[name=type]', el).onchange = () => { $('[name=cat]', el).innerHTML = catOpts($('[name=type]', el).value); sync(); };
         $('[name=allDay]', el).onchange = sync; $('[name=repeat]', el).onchange = sync;
+        el.addEventListener('click', e => {
+          const b = e.target.closest('[data-pick]'); if(!b) return;
+          const g = b.dataset.pick; const set = g === 'all' ? rosterNames() : g === 'none' ? [] : rosterNames([g]);
+          $$('[name=attendees]', el).forEach(i => { const on = g === 'none' ? false : (g === 'all' ? true : (set.includes(i.value) ? true : i.checked)); i.checked = on; i.closest('label').classList.toggle('on', on); });
+        });
         $('[name=start]', el).onchange = () => { const s = $('[name=start]', el), e = $('[name=end]', el); if(!e.value || e.value < s.value) e.value = s.value; };
         sync();
       },
@@ -1623,6 +1635,7 @@ const Cal = {
           if(!f.end || f.end < f.start) f.end = f.start;
           if(f.type === 'lab') f.visibility = 'shared';
           if(f.repeat !== 'weekly') f.repeatUntil = '';
+          f.attendees = f.attendees || [];
           const data = Object.assign({}, id ? ev : { uid: ME.uid, ownerName: ME.name, createdAt: Date.now() }, f, { updatedAt: Date.now() });
           delete data.id;
           dbSet('events', id || newId(), data);
@@ -1632,7 +1645,7 @@ const Cal = {
     const items = (this.byDay(d, d, false)[d] || []);
     const hol = HOLIDAYS[d];
     openModal({ title: fmtDateLong(d), sub: hol ? '🎌 ' + hol : '',
-      body: items.length ? '<div class="list">' + items.map(o => '<div class="li click" ' + (o.kind === 'event' ? 'data-evid="' + o.ev.id + '"' : o.kind === 'dl' ? 'data-dl="' + o.dl.id + '"' : '') + '>' + this.dot(o) + '<span class="t">' + esc(o.title) + '</span><span class="s">' + esc(o.timeLabel) + '</span></div>').join('') + '</div>'
+      body: items.length ? '<div class="list">' + items.map(o => '<div class="li click" ' + (o.kind === 'event' ? 'data-evid="' + o.ev.id + '"' : o.kind === 'dl' ? 'data-dl="' + o.dl.id + '"' : '') + '>' + this.dot(o) + '<span class="t">' + esc(o.title) + '</span>' + this.who(o) + '<span class="s">' + esc(o.timeLabel) + '</span></div>').join('') + '</div>'
                          : '<div class="hint">일정이 없습니다.</div>',
       onMount: (el, m) => el.addEventListener('click', e => {
         const a = e.target.closest('[data-evid]'); if(a){ m.close(); Cal.openEvent(a.dataset.evid); }
@@ -1650,7 +1663,7 @@ MOD.calendar = {
     const end = addDays(start, 41);
     const map = Cal.byDay(start, end, false);
     const t = todayStr();
-    const F = [['lab','연구실 일정'],['mine','내 일정'],['shared','구성원 공유 일정'],['dl','마감'],['resv','장비 예약']];
+    const F = [['lab','연구실 일정'],['mine','내 일정'],['shared','구성원 공유 일정'],['dl','마감'],['resv','장비 예약'],['onlyMe','● 내가 참여하는 것만']];
     let h = '<div class="toolbar"><button class="btn small" data-act="prev">‹</button><button class="btn small" data-act="today">오늘</button><button class="btn small" data-act="next">›</button>' +
       '<b style="font-size:16px;margin:0 6px">' + y + '년 ' + m + '월</b><span class="sp"></span><div class="cal-legend">' +
       F.map(([k, l]) => '<span class="chip sel' + (Cal.f[k] ? ' on' : '') + '" data-f="' + k + '">' + l + '</span>').join('') + '</div></div>';
@@ -1668,9 +1681,9 @@ MOD.calendar = {
     const days = Object.keys(up).sort();
     h += '<div class="card" style="margin-top:18px"><h3>다가오는 2주</h3>' + (days.length ? days.map(d =>
       '<div style="margin-bottom:8px"><div class="small" style="font-weight:800;color:' + (d === t ? 'var(--accent)' : 'var(--muted)') + ';margin:6px 0 2px">' + fmtDate(d) + (d === t ? ' · 오늘' : '') + '</div><div class="list">' +
-      up[d].map(o => '<div class="li click" ' + (o.kind === 'event' ? 'data-evid="' + o.ev.id + '"' : o.kind === 'dl' ? 'data-dl="' + o.dl.id + '"' : '') + '>' + Cal.dot(o) + '<span class="t">' + esc(o.title) + '</span><span class="s">' + esc(o.timeLabel) + '</span></div>').join('') + '</div></div>').join('')
+      up[d].map(o => '<div class="li click" ' + (o.kind === 'event' ? 'data-evid="' + o.ev.id + '"' : o.kind === 'dl' ? 'data-dl="' + o.dl.id + '"' : '') + '>' + Cal.dot(o) + '<span class="t">' + esc(o.title) + '</span>' + Cal.who(o) + '<span class="s">' + esc(o.timeLabel) + '</span></div>').join('') + '</div></div>').join('')
       : '<div class="hint">예정된 일정이 없습니다.</div>') + '</div>';
-    h += '<div class="hint" style="margin-top:6px">🔒 비밀 일정은 본인에게만 보입니다 (관리자도 볼 수 없음). 날짜 칸을 누르면 그날 일정을 보고 추가할 수 있습니다.</div>';
+    h += '<div class="hint" style="margin-top:6px">🔒 비밀 일정은 본인에게만 보입니다 (관리자도, 참여 인원으로 넣은 사람도 볼 수 없음). ● 표시는 내가 참여 인원에 들어 있는 일정입니다. 날짜 칸을 누르면 그날 일정을 보고 추가할 수 있습니다.</div>';
     return h;
   },
   onclick(e){
