@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.5.2';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -3863,11 +3863,10 @@ service cloud.firestore {
       allow delete: if canEdit('equipment') || (canAct() && resource.data.uid == request.auth.uid && resource.data.status == '요청');
     }
     match /achievements/{id} { allow read: if canView('deadlines'); allow write: if canEdit('deadlines'); }
-    // 건의사항: 누구나 작성·공감, 답변과 상태 변경은 편집 권한자. 익명 글에는 작성자 정보를 저장하지 않음
+    // 건의사항: 누구나 작성·공감, 답변과 상태 변경은 편집 권한자
     match /suggestions/{id} {
       allow read: if canView('suggest');
-      allow create: if canEdit('suggest') || (canAct() && canView('suggest') && request.resource.data.status == '접수'
-        && (request.resource.data.anon == true ? !('uid' in request.resource.data) : mine()));
+      allow create: if canEdit('suggest') || (canAct() && canView('suggest') && request.resource.data.status == '접수' && mine());
       allow update: if canEdit('suggest') || (canView('suggest') && onlyChanged(['likes']))
         || (canAct() && resource.data.get('uid', '') == request.auth.uid && resource.data.status == '접수'
           && request.resource.data.status == '접수' && mine());
@@ -4006,15 +4005,13 @@ const Suggest = {
     openModal({ title: id ? '건의 수정' : '건의하기', wide:true, sticky:true,
       body: '<div class="form">' + fld('제목', '<input name="title" value="' + esc(x.title) + '">', true) +
         fld('분류', '<select name="cat">' + SG_CATS.map(c => opt(c, c, x.cat)).join('') + '</select>') +
-        (id ? '<div></div>' : '<div><label class="fl">&nbsp;</label><label class="chk"><input type="checkbox" name="anon"> 익명으로 올리기</label></div>') +
-        fld('내용', '<textarea name="body" style="min-height:180px" placeholder="무엇이 불편한지, 어떻게 바뀌면 좋을지 적어주세요">' + esc(x.body) + '</textarea>', true) + '</div>' +
-        (id ? '' : '<div class="hint" style="margin-top:8px;line-height:1.6">익명으로 올리면 작성자 정보가 서버에 저장되지 않아 <b>관리자도 누가 썼는지 알 수 없습니다.</b> 대신 올린 뒤에는 본인도 수정·삭제할 수 없습니다.</div>'),
+        '<div></div>' +
+        fld('내용', '<textarea name="body" style="min-height:180px" placeholder="무엇이 불편한지, 어떻게 바뀌면 좋을지 적어주세요">' + esc(x.body) + '</textarea>', true) + '</div>',
       buttons: [{ label:'취소' }, { label: id ? '저장' : '올리기', cls:'primary', onClick: (m) => {
         const f = readForm(m.el);
         if(!f.title){ toast('제목을 입력하세요', true); return false; }
         if(id){ dbUpdate('suggestions', id, { title: f.title, body: f.body, cat: f.cat, updatedAt: Date.now(), status: x.status, uid: x.uid }); return; }
-        const data = { title: f.title, body: f.body, cat: f.cat, anon: !!f.anon, status:'접수', createdAt: Date.now(), likes: [] };
-        if(!f.anon){ data.uid = ME.uid; data.authorName = ME.name; }
+        const data = { title: f.title, body: f.body, cat: f.cat, status:'접수', createdAt: Date.now(), likes: [], uid: ME.uid, authorName: ME.name };
         dbSet('suggestions', newId(), data);
       } }] });
   },
@@ -4042,7 +4039,7 @@ MOD.suggest = {
     if(Suggest.f === 'mine') list = list.filter(x => Suggest.mine(x));
     list.sort((a, b) => (b.likes || []).length - (a.likes || []).length || (b.createdAt || 0) - (a.createdAt || 0));
     let h = '<div class="toolbar"><div class="seg">' + [['open','진행 중'],['done','처리 완료'],['mine','내 글'],['all','전체']].map(([k, l]) => '<button data-sf="' + k + '" class="' + (Suggest.f === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
-      '<span class="hint">공감이 많은 순으로 보입니다. 익명 글은 [내 글]에 나오지 않습니다.</span></div>';
+      '<span class="hint">공감이 많은 순으로 보입니다.</span></div>';
     if(!list.length) return h + '<div class="empty">건의사항이 없습니다.' + (canAct() ? ' 오른쪽 위 [＋ 건의하기]로 올려주세요.' : '') + '</div>';
     for(const x of list){
       const liked = (x.likes || []).includes(ME.uid);
