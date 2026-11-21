@@ -586,7 +586,7 @@ const FIREBASE_CONFIG = {
 };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.6';
+const APP_VERSION = '1.7';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -762,7 +762,7 @@ const S = {
   app:null, presentation:null, appLoaded:false,
   users:{}, notices:{}, events:{}, timetables:{}, deadlines:{}, minutes:{},
   fundProjects:{}, fundBatches:{}, equipment:{}, reservations:{}, supplies:{}, purchases:{},
-  suggestions:{}, achievements:{}
+  suggestions:{}, achievements:{}, noticeComments:{}
 };
 const vals = o => Object.values(o || {});
 let ME = null, MODE = null, BE = null, AU = null, FB = null;
@@ -929,7 +929,7 @@ function collInto(store, after){
     if(after) after(); scheduleRender();
   };
 }
-const COLL_MENU = { notices:'notices', timetables:'timetable', deadlines:'deadlines', fundProjects:'fund', fundBatches:'fund',
+const COLL_MENU = { notices:'notices', noticeComments:'notices', timetables:'timetable', deadlines:'deadlines', fundProjects:'fund', fundBatches:'fund',
                     equipment:'equipment', reservations:'equipment', supplies:'equipment', purchases:'equipment',
                     suggestions:'suggest', achievements:'deadlines' };
 let permSig = '';
@@ -1267,7 +1267,7 @@ function startApp(){
 }
 function teardownApp(){
   APP_STARTED = false; unsubAll(); permSig = '';
-  for(const k of ['users','notices','events','timetables','deadlines','minutes','fundProjects','fundBatches','equipment','reservations','supplies','purchases','suggestions','achievements']) for(const id in S[k]) delete S[k][id];
+  for(const k of ['users','notices','events','timetables','deadlines','minutes','fundProjects','fundBatches','equipment','reservations','supplies','purchases','suggestions','achievements','noticeComments']) for(const id in S[k]) delete S[k][id];
   for(const k in evShared) delete evShared[k]; for(const k in evMine) delete evMine[k];
   S.app = null; S.presentation = null; S.appLoaded = false;
   if(typeof Fund !== 'undefined') Fund.reset();
@@ -1433,6 +1433,7 @@ MOD.dashboard = {
    공지사항
    ================================================================= */
 const Notice = {
+  comments(id){ return vals(S.noticeComments).filter(c => c.noticeId === id).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); },
   open(id){
     const n = S.notices[id]; if(!n) return;
     if(!(n.readBy || []).includes(ME.uid) && isMember()){
@@ -1442,8 +1443,31 @@ const Notice = {
     const readers = (n.readBy || []).map(u => S.users[u] ? S.users[u].name : null).filter(Boolean);
     openModal({ title: n.title, wide:true,
       sub: esc(n.authorName || '') + ' · ' + fmtTs(n.createdAt) + (n.updatedAt && n.updatedAt !== n.createdAt ? ' (수정 ' + fmtTs(n.updatedAt) + ')' : ''),
-      body: '<div class="prewrap">' + linkify(n.body || '') + '</div><div class="hint" style="margin-top:18px">읽은 사람 ' + readers.length + '명: ' + esc(readers.join(', ')) + '</div>',
-      buttons: [ canEdit('notices') ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 공지를 삭제할까요?', onClick: () => dbDel('notices', id) } : null,
+      body: '<div class="prewrap">' + linkify(n.body || '') + '</div><div class="hint" style="margin-top:18px">읽은 사람 ' + readers.length + '명: ' + esc(readers.join(', ')) + '</div>' +
+        '<h4 style="margin-top:22px">댓글 <span id="ncCount" class="muted" style="font-weight:500"></span></h4><div id="ncList"></div>' +
+        (canAct() ? '<div style="display:flex;gap:8px;margin-top:10px;align-items:flex-end"><textarea id="ncText" placeholder="댓글을 입력하세요 (Ctrl+Enter로 등록)" style="flex:1;min-height:44px;height:44px;resize:vertical;font-family:inherit;font-size:13.5px"></textarea><button class="btn primary" id="ncAdd">등록</button></div>' : ''),
+      noFocus:true,
+      onMount: (el) => {
+        const draw = () => {
+          const list = Notice.comments(id);
+          $('#ncCount', el).textContent = list.length ? list.length + '개' : '';
+          $('#ncList', el).innerHTML = list.length ? list.map(c => '<div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #eef0f5">' + avatar(c.authorName, personColor(c.authorName), 'sm') +
+            '<div style="flex:1;min-width:0"><div class="small"><b>' + esc(c.authorName || '') + '</b> <span class="muted">' + fmtTs(c.createdAt) + '</span></div><div class="prewrap" style="font-size:13px;line-height:1.6;margin-top:2px">' + linkify(c.text || '') + '</div></div>' +
+            ((c.uid === ME.uid && canAct()) || canEdit('notices') ? '<button class="rowdel" data-ncdel="' + c.id + '" title="댓글 삭제">✕</button>' : '') + '</div>').join('') : '<div class="hint">아직 댓글이 없습니다.</div>';
+        };
+        const add = () => {
+          const t = $('#ncText', el); const text = t.value.trim(); if(!text) return;
+          const cid = newId(); const data = { noticeId: id, uid: ME.uid, authorName: ME.name, text, createdAt: Date.now() };
+          dbSet('noticeComments', cid, data).then(() => { S.noticeComments[cid] = Object.assign({ id: cid }, data); t.value = ''; draw(); scheduleRender(); }).catch(() => {});
+        };
+        if($('#ncAdd', el)){ $('#ncAdd', el).onclick = add; $('#ncText', el).onkeydown = e => { if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); add(); } }; }
+        el.addEventListener('click', e => {
+          const d = e.target.closest('[data-ncdel]'); if(!d) return;
+          const cid = d.dataset.ncdel; dbDel('noticeComments', cid).then(() => { delete S.noticeComments[cid]; draw(); scheduleRender(); }).catch(() => {});
+        });
+        draw(); el._nc = setInterval(() => { if(!el.isConnected){ clearInterval(el._nc); return; } if(document.activeElement !== $('#ncText', el)) draw(); }, 2500);
+      },
+      buttons: [ canEdit('notices') ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 공지를 삭제할까요? (댓글도 함께 삭제됩니다)', onClick: () => dbBatch([{ op:'del', coll:'notices', id }].concat(Notice.comments(id).map(c => ({ op:'del', coll:'noticeComments', id: c.id })))) } : null,
                  canEdit('notices') ? { label:'수정', onClick: () => { setTimeout(() => Notice.edit(id), 0); } } : null,
                  { label:'닫기', cls:'primary' } ] });
   },
@@ -1475,7 +1499,7 @@ MOD.notices = {
     for(const n of list){
       const unread = !(n.readBy || []).includes(ME.uid);
       h += '<div class="notice' + (n.pinned ? ' pinned' : '') + (unread ? ' unread' : '') + '" data-notice="' + n.id + '"><div class="nt">' + (n.pinned ? '📌 ' : '') + esc(n.title) + '</div>' +
-           '<div class="nm">' + esc(n.authorName || '') + ' · ' + fmtTs(n.createdAt) + ' · 읽음 ' + (n.readBy || []).length + '</div><div class="nb">' + esc(n.body || '') + '</div></div>';
+           '<div class="nm">' + esc(n.authorName || '') + ' · ' + fmtTs(n.createdAt) + ' · 읽음 ' + (n.readBy || []).length + (Notice.comments(n.id).length ? ' · 💬 ' + Notice.comments(n.id).length : '') + '</div><div class="nb">' + esc(n.body || '') + '</div></div>';
     }
     return h;
   },
@@ -2460,7 +2484,7 @@ MOD.admin = {
 /* =================================================================
    백업 · 복원
    ================================================================= */
-const BACKUP_COLLS = { users:'구성원 계정', notices:'공지사항', events:'일정', timetables:'시간표', deadlines:'마감 트래커',
+const BACKUP_COLLS = { users:'구성원 계정', notices:'공지사항', noticeComments:'공지 댓글', events:'일정', timetables:'시간표', deadlines:'마감 트래커',
   fundProjects:'연구비 과제', fundBatches:'연구비 신청차수', equipment:'장비', reservations:'장비 예약', supplies:'소모품', purchases:'구매 요청', suggestions:'건의사항', achievements:'연구 성과', settings:'설정(명단·권한·발표순서)' };
 const Backup = {
   build(){
@@ -3851,6 +3875,13 @@ service cloud.firestore {
       allow read: if canView('notices');
       allow create, delete: if canEdit('notices');
       allow update: if canEdit('notices') || (canView('notices') && onlyChanged(['readBy']));
+    }
+    // 공지 댓글: 누구나 작성, 본인 댓글만 수정·삭제 (공지 편집 권한자는 모두 삭제 가능)
+    match /noticeComments/{id} {
+      allow read: if canView('notices');
+      allow create: if canAct() && canView('notices') && mine();
+      allow update: if canAct() && resource.data.uid == request.auth.uid && mine();
+      allow delete: if canEdit('notices') || (canAct() && resource.data.uid == request.auth.uid);
     }
     match /timetables/{id} { allow read: if canView('timetable'); allow write: if canEdit('timetable'); }
     match /deadlines/{id}  { allow read: if canView('deadlines'); allow write: if canEdit('deadlines'); }
