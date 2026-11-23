@@ -386,6 +386,10 @@
   .cal-day .hol{font-size:10.5px;color:#dc2626;margin-left:3px;font-weight:600}
   .ev{display:block;font-size:11.5px;font-weight:600;border-radius:5px;padding:2px 6px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;border-left:3px solid transparent}
   .ev:hover{filter:brightness(.96)}
+  .ev.lab{font-weight:700;color:#fff;padding-top:3px;padding-bottom:3px;box-shadow:0 1px 2px rgba(20,22,40,.18)}
+  .ev.lab b{color:#fff !important}
+  .ev.sub{font-weight:500;font-size:11px}
+  .ev.done{opacity:.5;text-decoration:line-through}
   .ev.more{background:transparent;color:var(--muted);padding-left:6px}
   .cal-legend{display:flex;gap:6px;flex-wrap:wrap}
   @media (max-width:760px){ .cal-day{min-height:70px} .ev{font-size:10px;padding:1px 3px} }
@@ -612,7 +616,7 @@
 const FIREBASE_CONFIG = { apiKey: "AIzaSyD21dnh8GrazqmNvQPXLrOCOLqs4j9o4tg", authDomain: "aml-mag.firebaseapp.com", projectId: "aml-mag", storageBucket: "aml-mag.firebasestorage.app", messagingSenderId: "1051520639327", appId: "1:1051520639327:web:df6b9f48250082c66e56ea", measurementId: "G-XY3QST8EHJ" };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.8';
+const APP_VERSION = '1.8.1';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -1648,14 +1652,16 @@ const Cal = {
       push(d.date, { kind:'dl', dl:d, title:'⏰ ' + d.title, color: Deadline.isDone(d) ? '#9ca3af' : '#dc2626', timeLabel: d.time || '마감', sortKey:'2' });
     if(all || this.f.resv) for(const r of vals(S.reservations)) if(r.date >= from && r.date <= to)
       push(r.date, { kind:'resv', r, title:'🔧 ' + ((S.equipment[r.equipId] || {}).name || '장비') + ' · ' + r.userName, color:'#64748b', timeLabel: r.start + '–' + r.end, sortKey:'1' + r.start });
-    for(const d in map) map[d].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    const isLab = o => o.kind === 'event' && o.ev.type === 'lab';
+    for(const d in map) map[d].sort((a, b) => (isLab(b) - isLab(a)) || a.sortKey.localeCompare(b.sortKey));
     return map;
   },
   items(from, to){ const m = this.byDay(from, to, true); return Object.keys(m).sort().flatMap(d => m[d]); },
   dot(o){ return '<i style="width:8px;height:8px;border-radius:50%;background:' + o.color + ';flex-shrink:0;display:inline-block"></i>'; },
   chip(o){
     const attr = o.kind === 'event' ? 'data-evid="' + o.ev.id + '"' : o.kind === 'dl' ? 'data-dl="' + o.dl.id + '"' : o.kind === 'pl' ? 'data-pl="' + o.pl.id + '"' : 'data-go="equipment"';
-    return '<span class="ev" ' + attr + ' style="background:' + o.color + '1c;border-left-color:' + o.color + ';color:#22263a" title="' + esc(o.timeLabel + ' ' + o.title + (o.who && o.who.length ? ' — 참여: ' + o.who.join(', ') : '')) + '">' +
+    const lab = o.kind === 'event' && o.ev.type === 'lab';
+    return '<span class="ev' + (lab ? ' lab' : ' sub') + (o.done ? ' done' : '') + '" ' + attr + ' style="' + (lab ? 'background:' + o.color + ';border-left-color:' + o.color : 'background:' + o.color + '1c;border-left-color:' + o.color + ';color:#22263a') + '" title=""' + esc(o.timeLabel + ' ' + o.title + (o.who && o.who.length ? ' — 참여: ' + o.who.join(', ') : '')) + '">' +
       (o.kind === 'event' && o.timeLabel !== '종일' ? '<b style="font-weight:700;color:' + o.color + '">' + o.timeLabel.slice(0, 5) + '</b> ' : '') + (o.mine ? '<b title="내가 참여">●</b> ' : '') + esc(o.title) + (o.who && o.who.length ? ' <span style="opacity:.65;font-weight:500">· ' + esc(this.whoShort(o.who)) + '</span>' : '') + '</span>';
   },
   whoShort(a){ return a.length <= 3 ? a.join(', ') : a.slice(0, 2).join(', ') + ' 외 ' + (a.length - 2) + '명'; },
@@ -1769,7 +1775,7 @@ MOD.calendar = {
       '<div style="margin-bottom:8px"><div class="small" style="font-weight:800;color:' + (d === t ? 'var(--accent)' : 'var(--muted)') + ';margin:6px 0 2px">' + fmtDate(d) + (d === t ? ' · 오늘' : '') + '</div><div class="list">' +
       up[d].map(o => '<div class="li click" ' + (o.kind === 'event' ? 'data-evid="' + o.ev.id + '"' : o.kind === 'dl' ? 'data-dl="' + o.dl.id + '"' : o.kind === 'pl' ? 'data-pl="' + o.pl.id + '"' : '') + '>' + Cal.dot(o) + '<span class="t">' + esc(o.title) + '</span>' + Cal.who(o) + '<span class="s">' + esc(o.timeLabel) + '</span></div>').join('') + '</div></div>').join('')
       : '<div class="hint">예정된 일정이 없습니다.</div>') + '</div>';
-    h += '<div class="hint" style="margin-top:6px">🔒 비밀 일정은 본인에게만 보입니다 (관리자도, 참여 인원으로 넣은 사람도 볼 수 없음). ● 표시는 내가 참여 인원에 들어 있는 일정입니다. 날짜 칸을 누르면 그날 일정을 보고 추가할 수 있습니다.</div>';
+    h += '<div class="hint" style="margin-top:6px">🔒 비밀 일정은 본인에게만 보입니다 (관리자도, 참여 인원으로 넣은 사람도 볼 수 없음). 연구실 일정은 색이 채워진 막대로 맨 위에, 개인 일정·내 플래너(👤)는 연한 색으로 그 아래에 표시됩니다. ● 표시는 내가 참여 인원에 들어 있는 일정입니다. 날짜 칸을 누르면 그날 일정을 보고 추가할 수 있습니다.</div>';
     return h;
   },
   onclick(e){
