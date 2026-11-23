@@ -489,6 +489,8 @@
   .pl-b.cat{color:var(--c);background:transparent;border:1px solid var(--border)}
   .pl-b.crit{background:var(--danger-soft);color:var(--danger)} .pl-b.warn{background:#fff1dc;color:#b45309} .pl-b.ok{background:var(--ok-soft);color:var(--ok)}
   .pl-b.lab{background:var(--accent-soft);color:var(--accent)}
+  .pl-b.g{background:#e8f0fe;color:#1a56c4}
+  .pl-gi{width:20px;height:20px;border-radius:6px;background:#e8f0fe;color:#1a56c4;font-weight:800;font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
   .pl-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .pl-cal .dow{font-size:12px;color:var(--muted);text-align:center;padding:4px 0;font-weight:700}
   .pl-day{background:#fff;border:1px solid var(--border);border-radius:9px;min-height:92px;padding:6px;display:flex;flex-direction:column;gap:3px;text-align:left;min-width:0;cursor:pointer;font-family:inherit}
@@ -616,7 +618,7 @@
 const FIREBASE_CONFIG = { apiKey: "AIzaSyD21dnh8GrazqmNvQPXLrOCOLqs4j9o4tg", authDomain: "aml-mag.firebaseapp.com", projectId: "aml-mag", storageBucket: "aml-mag.firebasestorage.app", messagingSenderId: "1051520639327", appId: "1:1051520639327:web:df6b9f48250082c66e56ea", measurementId: "G-XY3QST8EHJ" };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.9';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -1467,7 +1469,7 @@ MOD.dashboard = {
     const p = e.target.closest('[data-pres]'); if(p) return setMyPresence(p.dataset.pres);
     const n = e.target.closest('[data-notice]'); if(n) return Notice.open(n.dataset.notice);
     const ev = e.target.closest('[data-ev]'); if(ev && ev.dataset.ev) return Cal.openEvent(ev.dataset.ev);
-    if(ev && ev.dataset.plid) return Planner.edit(S.planner[ev.dataset.plid]);
+    if(ev && ev.dataset.plid) return Planner.edit(Planner.get(ev.dataset.plid));
   }
 };
 
@@ -1638,6 +1640,11 @@ const Cal = {
       for(let d = it.date < from ? from : it.date, g = 0; d <= e && d <= to && g < 400; d = addDays(d, 1), g++)
         push(d, { kind:'pl', pl:it, title:'👤 ' + it.title, color: Planner.color(it.cat), timeLabel: it.allDay || !it.start ? '종일' : it.start + (it.end ? '–' + it.end : ''), sortKey: (it.allDay || !it.start ? '0' : '1' + it.start), done: it.done });
     }
+    if((all || this.f.pl) && !this.f.onlyLabView) for(const it of GCal.visible(from, to)){
+      const e = Planner.endOf(it);
+      for(let d = it.date < from ? from : it.date, g = 0; d <= e && d <= to && g < 400; d = addDays(d, 1), g++)
+        push(d, { kind:'pl', pl:it, title:'👤 G ' + it.title, color:'#4285f4', timeLabel: it.allDay || !it.start ? '종일' : it.start + (it.end ? '–' + it.end : ''), sortKey: (it.allDay || !it.start ? '0' : '1' + it.start) });
+    }
     for(const ev of vals(S.events)){
       if(!all && !this.visible(ev)) continue;
       if(PREVIEW && ev.visibility === 'private') continue;
@@ -1740,7 +1747,7 @@ const Cal = {
                          : '<div class="hint">일정이 없습니다.</div>',
       onMount: (el, m) => el.addEventListener('click', e => {
         const a = e.target.closest('[data-evid]'); if(a){ m.close(); Cal.openEvent(a.dataset.evid); }
-        const pz = e.target.closest('[data-pl]'); if(pz){ m.close(); Planner.edit(S.planner[pz.dataset.pl]); }
+        const pz = e.target.closest('[data-pl]'); if(pz){ m.close(); Planner.edit(Planner.get(pz.dataset.pl)); }
         const b = e.target.closest('[data-dl]'); if(b){ m.close(); Deadline.edit(b.dataset.dl); }
       }),
       buttons: [ canAct() ? { label:'＋ 이 날짜에 일정 추가', cls:'primary', onClick: () => { setTimeout(() => Cal.edit(null, d), 0); } } : null, { label:'닫기' } ] });
@@ -1755,7 +1762,7 @@ MOD.calendar = {
     const end = addDays(start, 41);
     const map = Cal.byDay(start, end, false);
     const t = todayStr();
-    const F = [['lab','연구실 일정'],['mine','내 일정'],['shared','구성원 공유 일정'],['pl','👤 내 플래너 (나만 보임)'],['dl','마감'],['resv','장비 예약'],['onlyMe','● 내가 참여하는 것만']];
+    const F = [['lab','연구실 일정'],['mine','내 일정'],['shared','구성원 공유 일정'],['pl','👤 내 플래너·구글 (나만 보임)'],['dl','마감'],['resv','장비 예약'],['onlyMe','● 내가 참여하는 것만']];
     let h = '<div class="toolbar"><button class="btn small" data-act="prev">‹</button><button class="btn small" data-act="today">오늘</button><button class="btn small" data-act="next">›</button>' +
       '<b style="font-size:16px;margin:0 6px">' + y + '년 ' + m + '월</b><span class="sp"></span><div class="cal-legend">' +
       F.map(([k, l]) => '<span class="chip sel' + (Cal.f[k] ? ' on' : '') + '" data-f="' + k + '">' + l + '</span>').join('') + '</div></div>';
@@ -1792,7 +1799,7 @@ MOD.calendar = {
     const f = e.target.closest('[data-f]'); if(f){ Cal.f[f.dataset.f] = !Cal.f[f.dataset.f]; Cal.saveF(); return render(); }
     const ev = e.target.closest('[data-evid]'); if(ev) return Cal.openEvent(ev.dataset.evid);
     const dl = e.target.closest('[data-dl]'); if(dl) return Deadline.edit(dl.dataset.dl);
-    const pli = e.target.closest('[data-pl]'); if(pli) return Planner.edit(S.planner[pli.dataset.pl]);
+    const pli = e.target.closest('[data-pl]'); if(pli) return Planner.edit(Planner.get(pli.dataset.pl));
     if(e.target.closest('[data-go]')) return;
     const day = e.target.closest('[data-day]'); if(day) return Cal.dayModal(day.dataset.day);
   }
@@ -4249,8 +4256,9 @@ const Planner = {
   ui: (() => { const d = { view:'list', cat:'all', q:'', hideDone:false, hidePersonal:false, showLab:true, sel:null, cal: todayStr().slice(0, 7) }; try{ Object.assign(d, JSON.parse(localStorage.getItem('labhub-planner-ui') || '{}')); }catch(e){} d.q = ''; return d; })(),
   saveUi(){ try{ localStorage.setItem('labhub-planner-ui', JSON.stringify(this.ui)); }catch(e){} },
   cat(k){ return PL_CATS.find(c => c[0] === k) || PL_CATS[PL_CATS.length - 1]; },
-  catName(k){ return k === '__lab' ? '연구실' : this.cat(k)[1]; },
-  color(k){ return k === '__lab' ? PL_LAB : this.cat(k)[2]; },
+  catName(k){ return k === '__lab' ? '연구실' : k === '__g' ? '구글' : this.cat(k)[1]; },
+  color(k){ return k === '__lab' ? PL_LAB : k === '__g' ? '#4285f4' : this.cat(k)[2]; },
+  get(id){ return id && String(id).startsWith('g:') ? GCal.find(id) : S.planner[id]; },
   mine(){ return PREVIEW ? [] : vals(S.planner).filter(x => x.uid === ME.uid); },
   endOf(it){ return it.endDate && it.endDate > it.date ? it.endDate : it.date; },
   covers(it, s){ return s >= it.date && s <= this.endOf(it); },
@@ -4281,11 +4289,12 @@ const Planner = {
   },
   match(it){
     const u = this.ui; const q = u.q.trim().toLowerCase();
+    if(it.g) return (u.cat === 'all' || u.cat === '__g') && (!q || (it.title + ' ' + (it.memo || '') + ' ' + (it.loc || '')).toLowerCase().includes(q));
     if(it.ro) return (u.cat === 'all' || u.cat === '__lab') && (!q || (it.title + ' ' + (it.memo || '')).toLowerCase().includes(q));
     if(u.hidePersonal && it.cat === 'personal') return false;
     return (u.cat === 'all' || it.cat === u.cat) && (!u.hideDone || !it.done) && (!q || (it.title + ' ' + (it.memo || '')).toLowerCase().includes(q));
   },
-  events(from, to){ return this.mine().filter(x => x.kind !== 'todo' && x.date).concat(this.labItems(from, to)).filter(x => this.match(x)); },
+  events(from, to){ return this.mine().filter(x => x.kind !== 'todo' && x.date).concat(this.labItems(from, to)).concat(GCal.visible(from, to)).filter(x => this.match(x)); },
   todos(){ return this.mine().filter(x => x.kind === 'todo').filter(x => this.match(x)); },
   sort(a, b){ if(a.date !== b.date) return a.date < b.date ? -1 : 1; if(a.allDay !== b.allDay) return a.allDay ? -1 : 1; return (a.start || '') < (b.start || '') ? -1 : (a.start || '') > (b.start || '') ? 1 : 0; },
   itemHTML(it, showDate){
@@ -4293,9 +4302,9 @@ const Planner = {
     const n = multi ? diffDays(this.endOf(it), it.date) + 1 : 1;
     const dateTxt = multi ? this.day(it.date) + ' ~ ' + this.day(this.endOf(it)) + ' ' : showDate ? this.day(it.date) + ' ' : '';
     return '<div class="pl-item' + (it.done ? ' done' : '') + (it.ro ? ' ro' : '') + '" style="--c:' + this.color(it.cat) + '" data-pid="' + esc(it.ro ? '' : it.id) + '" data-evid="' + esc(it.evId || '') + '">' +
-      (it.ro ? '<span title="연구실 일정 (읽기 전용)" style="width:20px;text-align:center">🏢</span>' : '<button class="pl-chk" data-ptoggle title="' + (it.done ? '완료 취소' : '완료') + '">' + (it.done ? '✓' : '') + '</button>') +
+      (it.ro ? '<span title="연구실 일정 (읽기 전용)" style="width:20px;text-align:center">🏢</span>' : it.g ? '<span class="pl-gi" title="구글 캘린더 일정 (나만 보임)">G</span>' : '<button class="pl-chk" data-ptoggle title="' + (it.done ? '완료 취소' : '완료') + '">' + (it.done ? '✓' : '') + '</button>') +
       '<div class="pl-body" data-popen><div class="pt">' + esc(it.title) + '</div><div class="pl-meta"><span>' + dateTxt + this.timeLabel(it) + '</span>' +
-      (it.ro ? '<span class="pl-b lab">' + (it.src === 'lab' ? '연구실 일정' : '달력 · 내 일정') + '</span>' + (it.mine ? '<span class="pl-b ok">내가 참여</span>' : '') : '<span class="pl-b cat">' + this.catName(it.cat) + '</span>') +
+      (it.ro ? '<span class="pl-b lab">' + (it.src === 'lab' ? '연구실 일정' : '달력 · 내 일정') + '</span>' + (it.mine ? '<span class="pl-b ok">내가 참여</span>' : '') : it.g ? '<span class="pl-b g">구글 캘린더</span>' + (it.loc ? '<span>📍 ' + esc(it.loc) + '</span>' : '') : '<span class="pl-b cat">' + this.catName(it.cat) + '</span>' + (it.gid ? '<span class="pl-b g" title="구글 캘린더와 연동된 일정">G 연동</span>' : '')) +
       (multi ? '<span class="pl-b">' + n + '일간</span>' : '') +
       (d ? '<span class="pl-b ' + d.cls + '">마감 ' + it.dueDate.slice(5).replace('-', '/') + (it.dueTime ? ' ' + it.dueTime : '') + ' · ' + d.label + '</span>' : '') + '</div>' +
       (it.memo ? '<div class="pl-memo">' + esc(it.memo) + '</div>' : '') + '</div><span></span></div>';
@@ -4323,7 +4332,7 @@ const Planner = {
     g[0][1].reverse();
     let html = [g[1], g[2], g[3], g[0]].filter(x => x[1].length).map(x => '<div class="pl-group"><h4>' + x[0] + ' <span class="muted">' + x[1].length + '</span></h4><div class="pl-items">' + x[1].map(i => this.itemHTML(i, true)).join('') + '</div></div>').join('');
     if(!html) html = '<div class="empty">표시할 일정이 없습니다. [＋ 일정]으로 추가하세요.</div>';
-    const evN = list.filter(i => !i.done && !i.ro && this.endOf(i) >= t).length, tdN = this.todos().filter(i => !i.done).length;
+    const evN = list.filter(i => !i.done && !i.ro && !i.g && this.endOf(i) >= t).length, tdN = this.todos().filter(i => !i.done).length;
     return '<div class="pl-cols"><div><div class="pl-colhead"><h3>일정<span class="n">내 일정 ' + evN + '건 남음</span></h3><button class="btn small" data-padd="event">＋ 일정</button></div>' + html + '</div>' +
       '<div><div class="pl-colhead"><h3>할 일<span class="n">남은 ' + tdN + '건</span></h3><button class="btn small" data-padd="todo">＋ 할 일</button></div>' + this.todosHTML() + '</div></div>';
   },
@@ -4338,7 +4347,7 @@ const Planner = {
       const s = addDays(start, i); const dd = parseYmd(s); if(i === 35 && dd.getMonth() !== m - 1) break;
       const evs = at(s);
       h += '<button class="pl-day' + (dd.getMonth() !== m - 1 ? ' out' : '') + (s === t ? ' today' : '') + (u.sel === s ? ' sel' : '') + '" data-pday="' + s + '"><span class="d">' + dd.getDate() + (HOLIDAYS[s] ? ' <span style="color:#dc2626;font-weight:600;font-size:10.5px">' + HOLIDAYS[s] + '</span>' : '') + '</span>' +
-        evs.slice(0, 3).map(it => '<span class="e' + (it.done ? ' done' : '') + (it.ro ? ' lab' : '') + (it.kind === 'todo' || (it.date && !this.covers(it, s)) ? ' due' : '') + '" style="--c:' + this.color(it.cat) + '">' + (it.ro ? '🏢 ' : it.kind === 'todo' ? '☑ ' : (it.date && !this.covers(it, s)) ? '마감 ' : '') + esc(it.title) + '</span>').join('') +
+        evs.slice(0, 3).map(it => '<span class="e' + (it.done ? ' done' : '') + (it.ro ? ' lab' : '') + (it.kind === 'todo' || (it.date && !this.covers(it, s)) ? ' due' : '') + '" style="--c:' + this.color(it.cat) + '">' + (it.ro ? '🏢 ' : it.g ? 'G ' : it.kind === 'todo' ? '☑ ' : (it.date && !this.covers(it, s)) ? '마감 ' : '') + esc(it.title) + '</span>').join('') +
         (evs.length > 3 ? '<span class="small muted">+' + (evs.length - 3) + '</span>' : '') + '</button>';
     }
     h += '</div>';
@@ -4351,16 +4360,16 @@ const Planner = {
   },
   edit(it, dateDefault, kind){
     if(!canActPlanner()){ toast('미리보기 중에는 수정할 수 없습니다', true); return; }
-    const isNew = !it; const k0 = it ? (it.kind === 'todo' ? 'todo' : 'event') : (kind || 'event');
+    const isNew = !it; const k0 = it ? (it.kind === 'todo' ? 'todo' : 'event') : (kind || 'event'); const isG = !!(it && it.g);
     const x = it || { title:'', cat:'research', date: dateDefault || todayStr(), endDate:'', allDay:true, start:'', end:'', dueDate:'', dueTime:'', memo:'' };
-    openModal({ title: (k0 === 'todo' ? '할 일 ' : '일정 ') + (isNew ? '추가' : '수정'), sticky:true, sub:'🔒 내 플래너의 내용은 나만 볼 수 있습니다.',
+    openModal({ title: (k0 === 'todo' ? '할 일 ' : '일정 ') + (isNew ? '추가' : '수정'), sticky:true, sub: isG ? 'G 구글 캘린더의 일정입니다. 저장·삭제하면 구글 캘린더에 바로 반영됩니다 (나만 보임).' : '🔒 내 플래너의 내용은 나만 볼 수 있습니다.' + (it && it.gid ? ' G 구글 캘린더와 연동된 일정입니다.' : ''),
       body: (isNew ? '<div class="seg" style="margin-bottom:14px"><button type="button" data-k="event" class="' + (k0 === 'event' ? 'on' : '') + '">일정</button><button type="button" data-k="todo" class="' + (k0 === 'todo' ? 'on' : '') + '">할 일</button></div>' : '') +
         '<div class="form">' + fld('제목', '<input name="title" value="' + esc(x.title) + '" placeholder="예: 랩미팅 발표 자료 준비">', true) +
-        '<div class="full"><label class="fl">분류</label><div class="pl-cats">' + PL_CATS.map(c => '<label style="--c:' + c[2] + '"><input type="radio" name="cat" value="' + c[0] + '"' + (x.cat === c[0] ? ' checked' : '') + '><i></i>' + c[1] + '</label>').join('') + '</div></div>' +
+        '<div class="full" data-nog><label class="fl">분류</label><div class="pl-cats">' + PL_CATS.map(c => '<label style="--c:' + c[2] + '"><input type="radio" name="cat" value="' + c[0] + '"' + (x.cat === c[0] ? ' checked' : '') + '><i></i>' + c[1] + '</label>').join('') + '</div></div>' +
         '<div data-ev>' + fld('시작일', '<input type="date" name="date" value="' + esc(x.date || '') + '">') + '</div><div data-ev>' + fld('종료일 <span style="font-weight:500">(여러 날이면)</span>', '<input type="date" name="endDate" value="' + esc(x.endDate || '') + '">') + '</div>' +
         '<div data-ev class="full">' + fld('시간', '<select name="allDay">' + opt('1', '종일', x.allDay ? '1' : '0') + opt('0', '시간 지정', x.allDay ? '1' : '0') + '</select>') + '</div>' +
         '<div data-ev data-time>' + fld('시작', '<input type="time" name="start" step="300" value="' + esc(x.start || '') + '">') + '</div><div data-ev data-time>' + fld('종료', '<input type="time" name="end" step="300" value="' + esc(x.end || '') + '">') + '</div>' +
-        fld('<span data-duelabel>마감기한</span> <span style="font-weight:500">(선택)</span>', '<input type="date" name="dueDate" value="' + esc(x.dueDate || '') + '">') + fld('마감 시각', '<input type="time" name="dueTime" step="300" value="' + esc(x.dueTime || '') + '">') +
+        '<div data-nog>' + fld('<span data-duelabel>마감기한</span> <span style="font-weight:500">(선택)</span>', '<input type="date" name="dueDate" value="' + esc(x.dueDate || '') + '">') + '</div><div data-nog>' + fld('마감 시각', '<input type="time" name="dueTime" step="300" value="' + esc(x.dueTime || '') + '">') + '</div>' +
         fld('메모', '<textarea name="memo" placeholder="장소, 준비물, 링크 등">' + esc(x.memo || '') + '</textarea>', true) + '</div>',
       onMount: (el) => {
         el._k = k0;
@@ -4374,8 +4383,10 @@ const Planner = {
         };
         $$('[data-k]', el).forEach(b => b.onclick = () => { el._k = b.dataset.k; sync(); });
         $('[name=allDay]', el).onchange = sync; sync();
+        if(isG) $$('[data-nog]', el).forEach(n => n.style.display = 'none');
       },
-      buttons: [ !isNew ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'삭제할까요?', onClick: () => dbDel('planner', it.id) } : null, { label:'취소' },
+      buttons: [ !isNew ? { label:'삭제', cls:'ghost-danger', left:true, confirm: isG ? '구글 캘린더에서 이 일정을 삭제할까요? 되돌릴 수 없습니다.' : it.gid ? '삭제할까요? 연동된 구글 캘린더 일정도 함께 삭제됩니다.' : '삭제할까요?', onClick: () => { if(isG) return GCal.removeG(it); if(it.gid) GCal.queueDel(it.gid); return dbDel('planner', it.id); } } : null, { label:'취소' },
+        isG && it.link && safeUrl(it.link) ? { label:'구글에서 열기', onClick: () => { window.open(safeUrl(it.link), '_blank', 'noopener'); return false; } } : null,
         { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el); const todo = m.el._k === 'todo';
           if(!f.title){ toast('제목을 입력하세요', true); return false; }
@@ -4389,8 +4400,11 @@ const Planner = {
             if(!endDate && !allDay && f.start && f.end && f.end < f.start){ toast('종료 시간이 시작 시간보다 빠릅니다', true); return false; }
             data = { kind:'event', title: f.title, cat: f.cat || 'etc', date: f.date, endDate, allDay, start: allDay ? '' : f.start, end: allDay ? '' : f.end, dueDate: f.dueDate, dueTime: f.dueDate ? f.dueTime : '', memo: f.memo };
           }
+          if(isG){ GCal.saveG(it, data); return; }
           data.uid = ME.uid; data.done = it ? !!it.done : false; data.createdAt = it ? (it.createdAt || Date.now()) : Date.now(); data.updatedAt = Date.now();
-          dbSet('planner', it ? it.id : newId(), data);
+          if(it){ ['gid','gUpdated','gSyncedAt','gOff'].forEach(k => { if(it[k] !== undefined) data[k] = it[k]; }); }
+          if(todo && it && it.gid){ GCal.queueDel(it.gid); data.gid = ''; }
+          Promise.resolve(dbSet('planner', it ? it.id : newId(), data)).then(() => GCal.soon());
         } } ] });
   },
   /* 예전 '민호 플래너' 아티팩트 형식({items, todos}) 또는 이 화면의 내보내기 파일 가져오기 */
@@ -4404,9 +4418,198 @@ const Planner = {
     await dbBatch(ops); toast('가져왔습니다 — 일정 ' + items.length + '건, 할 일 ' + todos.length + '건');
   },
   exportData(){
-    const strip = x => { const d = clone(x); delete d.uid; delete d.kind; return d; };
+    const strip = x => { const d = clone(x); ['uid','kind','gid','gUpdated','gSyncedAt','gOff'].forEach(k => delete d[k]); return d; };
     const mine = vals(S.planner).filter(x => x.uid === ME.uid);
     downloadFile('내플래너_' + todayStr() + '.json', JSON.stringify({ items: mine.filter(x => x.kind !== 'todo').map(strip), todos: mine.filter(x => x.kind === 'todo').map(strip) }, null, 1));
+  }
+};
+
+/* =================================================================
+   구글 캘린더 양방향 연동 (내 플래너 전용 · 본인만 보임)
+   - 구글 일정은 이 브라우저 메모리에만 두고 서버(Firestore)에 저장하지 않습니다.
+   - 내 플래너 일정에는 연동용 구글 일정 ID(gid)만 붙습니다 (문서 자체가 본인 전용).
+   - 접근 토큰은 탭을 닫으면 사라지는 sessionStorage 에만 둡니다.
+   ================================================================= */
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+const GCal = {
+  items: [], uid: null, last: 0, busy: false, err: '', token: null, exp: 0, _t: null,
+  k(n){ return 'labhub-gcal-' + n + '-' + (ME ? ME.uid : ''); },
+  ls(n, v){ try{ if(v === undefined) return localStorage.getItem(this.k(n)); if(v === null) localStorage.removeItem(this.k(n)); else localStorage.setItem(this.k(n), v); }catch(e){} return null; },
+  clientId(){ return ((S.app && S.app.gcalClientId) || '').trim(); },
+  on(){ return !PREVIEW && this.ls('on') === '1'; },
+  pushOn(){ return this.ls('push') !== '0'; },
+  label(){ return this.busy ? '⏳ 동기화 중…' : this.on() ? '🔄 구글 동기화' + (this.last && this.uid === ME.uid ? ' · ' + new Date(this.last).toTimeString().slice(0, 5) : '') : 'G 구글 캘린더 연동'; },
+  visible(from, to){ if(PREVIEW || !ME || this.uid !== ME.uid || !this.on() || Planner.ui.showG === false) return []; return this.items.filter(x => x.date <= to && Planner.endOf(x) >= from); },
+  find(id){ return this.uid === ME.uid ? this.items.find(x => x.id === id) : null; },
+  tz(){ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul'; }catch(e){ return 'Asia/Seoul'; } },
+  loadGis(){
+    if(window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+    return this._gis || (this._gis = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = () => res(); s.onerror = () => { this._gis = null; rej(new Error('구글 로그인 모듈을 불러오지 못했습니다 (네트워크·광고 차단 확인)')); }; document.head.appendChild(s); }));
+  },
+  validToken(){
+    if(this.token && this.exp > Date.now() + 60000 && this.tokUid === ME.uid) return this.token;
+    try{ const o = JSON.parse(sessionStorage.getItem(this.k('tok')) || 'null'); if(o && o.exp > Date.now() + 60000){ this.token = o.t; this.exp = o.exp; this.tokUid = ME.uid; return o.t; } }catch(e){}
+    return null;
+  },
+  async auth(){
+    const t = this.validToken(); if(t) return t;
+    const cid = this.clientId(); if(!cid) throw new Error('관리자가 구글 클라이언트 ID를 아직 설정하지 않았습니다');
+    await this.loadGis();
+    return new Promise((res, rej) => {
+      const tc = google.accounts.oauth2.initTokenClient({ client_id: cid, scope: GCAL_SCOPE,
+        callback: r => {
+          if(!r || r.error || !r.access_token) return rej(new Error(r && r.error === 'access_denied' ? '구글에서 권한을 허용하지 않았습니다' : '구글 인증 실패' + (r && r.error ? ' (' + r.error + ')' : '')));
+          if(google.accounts.oauth2.hasGrantedAllScopes && !google.accounts.oauth2.hasGrantedAllScopes(r, GCAL_SCOPE)) return rej(new Error('캘린더 권한 체크박스를 선택해야 합니다'));
+          this.token = r.access_token; this.exp = Date.now() + (Number(r.expires_in) || 3600) * 1000; this.tokUid = ME.uid;
+          try{ sessionStorage.setItem(this.k('tok'), JSON.stringify({ t: this.token, exp: this.exp })); }catch(e){}
+          res(this.token);
+        },
+        error_callback: e => rej(new Error(e && e.type === 'popup_closed' ? '구글 창이 닫혔습니다' : e && e.type === 'popup_failed_to_open' ? '팝업이 차단되었습니다 — 주소창의 팝업 차단을 해제하세요' : '구글 인증 실패')) });
+      tc.requestAccessToken({ prompt: this.ls('ok') === '1' ? '' : 'consent' });
+    });
+  },
+  async api(method, path, body){
+    const r = await fetch('https://www.googleapis.com/calendar/v3' + path, { method, headers: Object.assign({ Authorization:'Bearer ' + this.token }, body ? { 'Content-Type':'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
+    if(r.status === 204) return null;
+    if(method === 'DELETE' && (r.status === 404 || r.status === 410)) return null;
+    let j = null; try{ j = await r.json(); }catch(e){}
+    if(!r.ok){
+      if(r.status === 401){ this.token = null; this.exp = 0; try{ sessionStorage.removeItem(this.k('tok')); }catch(e){} }
+      const msg = (j && j.error && j.error.message) || ('HTTP ' + r.status);
+      const err = new Error(r.status === 403 && /not been used|disabled|accessNotConfigured/i.test(msg) ? 'Google Calendar API가 꺼져 있습니다 (관리자: 구글 클라우드 콘솔에서 사용 설정)' : r.status === 401 ? '구글 인증이 만료되었습니다 — 다시 동기화를 눌러 주세요' : '구글 캘린더 오류: ' + msg);
+      err.status = r.status; throw err;
+    }
+    return j;
+  },
+  /* 플래너 항목 → 구글 일정 */
+  toG(it){
+    const e = { summary: it.title };
+    if(it.memo !== undefined) e.description = it.memo || '';
+    const end = Planner.endOf(it);
+    if(it.allDay || !it.start){ e.start = { date: it.date }; e.end = { date: addDays(end, 1) }; }
+    else{
+      const tz = this.tz(); let ed = end, et = it.end;
+      if(!et){ const [hh, mm] = it.start.split(':').map(Number); const m = hh * 60 + mm + 60; if(m >= 1440){ ed = addDays(end, 1); } et = pad2(Math.floor(m / 60) % 24) + ':' + pad2(m % 60); }
+      e.start = { dateTime: it.date + 'T' + it.start + ':00', timeZone: tz }; e.end = { dateTime: ed + 'T' + et + ':00', timeZone: tz };
+    }
+    return e;
+  },
+  /* 구글 일정 → 플래너 필드 */
+  fromG(g){
+    const o = { title: g.summary || '(제목 없음)' };
+    if(g.start && g.start.date){ o.allDay = true; o.date = g.start.date; const e = addDays((g.end && g.end.date) || addDays(g.start.date, 1), -1); o.endDate = e > o.date ? e : ''; o.start = ''; o.end = ''; }
+    else{
+      const s = new Date(g.start.dateTime), e = new Date((g.end && g.end.dateTime) || g.start.dateTime);
+      const hm = d => pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+      o.allDay = false; o.date = ymd(s); o.endDate = ymd(e) > o.date ? ymd(e) : ''; o.start = hm(s); o.end = hm(e);
+    }
+    return o;
+  },
+  plain(s){ return String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim(); },
+  shape(g){ return Object.assign(this.fromG(g), { id:'g:' + g.id, g:true, gid: g.id, kind:'event', cat:'__g', memo: this.plain(g.description).slice(0, 600), desc0: this.plain(g.description).slice(0, 600), loc: g.location || '', link: g.htmlLink || '', done:false, dueDate:'', dueTime:'' }); },
+  queueDel(gid){ if(!gid) return; let q = []; try{ q = JSON.parse(this.ls('del') || '[]'); }catch(e){} q.push(gid); this.ls('del', JSON.stringify(q.slice(-200))); this.soon(); },
+  soon(){ if(!this.on() || !this.validToken()) return; clearTimeout(this._t); this._t = setTimeout(() => this.sync(false), 1500); },
+  refresh(){ if(typeof scheduleRender === 'function') scheduleRender(); else render(); },
+  async sync(interactive){
+    if(this.busy || PREVIEW) return;
+    if(!interactive && !this.validToken()) return;
+    this.busy = true; this.err = ''; if(interactive) this.refresh();
+    const uid = ME.uid; const st = { pulled:0, linked:0, created:0, pushed:0, updated:0, unlinked:0, deleted:0 };
+    try{
+      await this.auth(); this.ls('ok', '1'); this.ls('on', '1');
+      const t = todayStr(), from = addDays(t, -60), to = addDays(t, 365);
+      /* 1) 플래너에서 지운 항목을 구글에서도 삭제 */
+      let q = []; try{ q = JSON.parse(this.ls('del') || '[]'); }catch(e){}
+      while(q.length){ await this.api('DELETE', '/calendars/primary/events/' + encodeURIComponent(q[0])); q.shift(); st.deleted++; this.ls('del', JSON.stringify(q)); }
+      /* 2) 구글 일정 읽기 */
+      const all = []; let pageToken = '';
+      for(let g = 0; g < 20; g++){
+        const j = await this.api('GET', '/calendars/primary/events?singleEvents=true&showDeleted=true&maxResults=250&orderBy=startTime&timeMin=' + encodeURIComponent(new Date(from + 'T00:00:00').toISOString()) + '&timeMax=' + encodeURIComponent(new Date(to + 'T23:59:59').toISOString()) + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''));
+        all.push(...((j && j.items) || [])); pageToken = j && j.nextPageToken; if(!pageToken) break;
+      }
+      if(ME.uid !== uid) return;
+      const byId = {}; all.forEach(g => { byId[g.id] = g; });
+      const live = all.filter(g => g.status !== 'cancelled' && g.start && (g.start.date || g.start.dateTime));
+      const linked = new Set();
+      const mine = Planner.mine().filter(x => x.kind !== 'todo' && x.date);
+      /* 3) 이미 연동된 항목: 바뀐 쪽 → 다른 쪽 */
+      for(const it of mine){
+        if(!it.gid) continue; linked.add(it.gid);
+        const g = byId[it.gid]; if(!g) continue;
+        if(g.status === 'cancelled'){ await dbUpdate('planner', it.id, { uid, gid:'', gUpdated:'', gOff:true }); st.unlinked++; continue; }
+        if((it.updatedAt || 0) > (it.gSyncedAt || 0)){
+          const r = await this.api('PATCH', '/calendars/primary/events/' + encodeURIComponent(it.gid), this.toG(it));
+          await dbUpdate('planner', it.id, { uid, gUpdated: (r && r.updated) || '', gSyncedAt: Date.now() }); st.pushed++;
+        }else if(g.updated && g.updated !== it.gUpdated){
+          const now = Date.now();
+          await dbUpdate('planner', it.id, Object.assign(this.fromG(g), { uid, memo: this.plain(g.description), gUpdated: g.updated, gSyncedAt: now, updatedAt: now })); st.updated++;
+        }
+      }
+      /* 4) 아직 구글에 없는 내 플래너 일정 올리기 (오늘 이후 · 같은 제목·날짜가 이미 있으면 연결만) */
+      if(this.pushOn()){
+        const free = live.filter(g => !linked.has(g.id));
+        let n = 0;
+        for(const it of mine){
+          if(it.gid || it.gOff || Planner.endOf(it) < t || it.date > to) continue;
+          if(n >= 100) break;
+          const i = free.findIndex(g => (g.summary || '').trim() === it.title.trim() && this.fromG(g).date === it.date);
+          let g;
+          if(i >= 0){ g = free.splice(i, 1)[0]; st.linked++; }
+          else{ g = await this.api('POST', '/calendars/primary/events', Object.assign(this.toG(it), { extendedProperties:{ private:{ labhub: it.id } } })); st.created++; n++; }
+          linked.add(g.id);
+          await dbUpdate('planner', it.id, { uid, gid: g.id, gUpdated: g.updated || '', gSyncedAt: Date.now() });
+        }
+      }
+      /* 5) 구글에만 있는 일정 → 화면에만 표시 (저장 안 함) */
+      if(ME.uid !== uid) return;
+      this.items = live.filter(g => !linked.has(g.id)).map(g => this.shape(g)); this.uid = uid; this.last = Date.now(); st.pulled = this.items.length;
+      if(interactive) toast('구글 캘린더 동기화 완료 — 구글 일정 ' + st.pulled + '건 표시' + (st.created ? ', 새로 올림 ' + st.created : '') + (st.linked ? ', 기존 일정과 연결 ' + st.linked : '') + (st.pushed ? ', 구글 수정 ' + st.pushed : '') + (st.updated ? ', 플래너 수정 ' + st.updated : '') + (st.deleted ? ', 구글 삭제 ' + st.deleted : '') + (st.unlinked ? ' · 구글에서 지워진 ' + st.unlinked + '건은 플래너에 남기고 연동만 해제' : ''));
+    }catch(e){
+      this.err = e.message || String(e); if(interactive) toast(this.err, true);
+    }finally{ this.busy = false; this.stats = st; this.refresh(); }
+  },
+  /* 구글에만 있는 일정을 플래너 화면에서 수정/삭제 → 구글에 바로 반영 */
+  async saveG(it, data){
+    try{
+      await this.auth();
+      const body = this.toG(Object.assign({}, data, { memo: undefined })); if((data.memo || '') !== (it.desc0 || '')) body.description = data.memo || '';
+      const g = await this.api('PATCH', '/calendars/primary/events/' + encodeURIComponent(it.gid), body);
+      const i = this.items.findIndex(x => x.id === it.id); if(i >= 0 && g) this.items[i] = this.shape(g);
+      toast('구글 캘린더에 저장했습니다');
+    }catch(e){ toast(e.message, true); }
+    this.refresh();
+  },
+  async removeG(it){
+    try{ await this.auth(); await this.api('DELETE', '/calendars/primary/events/' + encodeURIComponent(it.gid)); this.items = this.items.filter(x => x.id !== it.id); toast('구글 캘린더에서 삭제했습니다'); }
+    catch(e){ toast(e.message, true); }
+    this.refresh();
+  },
+  disconnect(){
+    const tok = this.token; this.items = []; this.token = null; this.exp = 0; this.last = 0; this.err = '';
+    this.ls('on', null); this.ls('ok', null); try{ sessionStorage.removeItem(this.k('tok')); }catch(e){}
+    try{ if(tok && window.google && google.accounts) google.accounts.oauth2.revoke(tok, () => {}); }catch(e){}
+    toast('구글 캘린더 연동을 해제했습니다 (이 기기)'); this.refresh();
+  },
+  modal(){
+    if(PREVIEW){ toast('미리보기 중에는 사용할 수 없습니다', true); return; }
+    const cid = this.clientId(), on = this.on();
+    const linkedN = Planner.mine().filter(x => x.gid).length;
+    openModal({ title:'구글 캘린더 연동', sub:'🔒 내 플래너 전용 — 다른 구성원과 관리자에게는 보이지 않습니다.', noFocus:true,
+      body: '<div class="hint" style="line-height:1.7">' +
+          '• <b>구글 → 플래너</b>: 내 구글 캘린더(기본 캘린더)의 일정이 <b>G</b> 표시로 내 플래너와 연구실 일정 달력(나에게만)에 보입니다. 여기서 수정·삭제하면 구글에 바로 반영됩니다.<br>' +
+          '• <b>플래너 → 구글</b>: 내 플래너의 일정을 구글 캘린더에 올리고, 이후 어느 쪽에서 고쳐도 동기화할 때 맞춰집니다. 할 일과 연구실 일정은 올리지 않습니다.<br>' +
+          '• 구글 일정 내용은 이 브라우저에서만 불러오고 연구실 서버에는 저장하지 않습니다. 범위: 60일 전 ~ 1년 뒤.</div>' +
+        (cid ? '<div style="margin:14px 0 6px"><b>상태</b>: ' + (on ? '연결됨' + (this.last && this.uid === ME.uid ? ' · 마지막 동기화 ' + new Date(this.last).toTimeString().slice(0, 5) : ' · 이번 접속에서는 아직 동기화 전') + ' · 연동된 플래너 일정 ' + linkedN + '건' : '연결 안 됨') + '</div>' +
+              '<label class="chk"><input type="checkbox" id="gcPush"' + (this.pushOn() ? ' checked' : '') + '> 내 플래너의 일정(오늘 이후)을 구글 캘린더에 올리기 <span class="small muted">— 같은 날짜·같은 제목이 이미 구글에 있으면 새로 만들지 않고 연결만 합니다</span></label>' +
+              (this.err ? '<div class="alert" style="margin-top:10px;color:var(--danger)">' + esc(this.err) + '</div>' : '')
+            : '<div class="alert info" style="margin-top:12px">' + (isAdmin() ? '아직 구글 클라이언트 ID가 없습니다. 아래에 한 번만 입력하면 모든 구성원이 각자 자기 구글 계정으로 연동할 수 있습니다.' : '관리자가 구글 클라이언트 ID를 먼저 설정해야 사용할 수 있습니다.') + '</div>') +
+        (isAdmin() ? '<div style="margin-top:14px"><label class="fl" style="display:block;margin-bottom:4px">구글 OAuth 클라이언트 ID <span style="font-weight:500">(관리자 · 비밀값 아님)</span></label>' + ('<input id="gcCid" style="width:100%;margin-bottom:6px" value="' + esc(cid) + '" placeholder="1234567890-xxxx.apps.googleusercontent.com">') +
+          '<div class="small muted" style="line-height:1.6">구글 클라우드 콘솔(프로젝트 선택) → ① API 및 서비스 → 라이브러리 → <b>Google Calendar API</b> 사용 설정 ② OAuth 동의 화면 → 범위에 <code>calendar.events</code> 추가, 테스트 사용자에 구성원 구글 계정 추가 ③ 사용자 인증 정보 → OAuth 2.0 클라이언트 ID(웹) → 승인된 JavaScript 원본에 <code>' + esc(location.origin) + '</code> 추가 → 클라이언트 ID 복사</div></div>' : ''),
+      onMount: (el) => { const c = $('#gcPush', el); if(c) c.onchange = () => this.ls('push', c.checked ? '1' : '0'); },
+      buttons: [ on ? { label:'연동 해제', cls:'ghost-danger', left:true, confirm:'이 기기에서 구글 캘린더 연동을 해제할까요? 구글과 플래너의 일정은 지워지지 않습니다.', onClick: () => this.disconnect() } : null,
+        { label:'닫기' },
+        isAdmin() ? { label:'ID 저장', onClick: (m) => { const v = $('#gcCid', m.el).value.trim(); if(v && !/\.apps\.googleusercontent\.com$/.test(v)){ toast('클라이언트 ID 형식이 아닙니다 (…apps.googleusercontent.com)', true); return false; } dbSet('settings', 'app', { gcalClientId: v }, true).then(() => toast('저장했습니다')); return false; } } : null,
+        cid ? { label: on ? '지금 동기화' : '구글 계정 연결', cls:'primary', onClick: () => { this.sync(true); } } : null ] });
   }
 };
 const canActPlanner = () => isMember() && !PREVIEW;
@@ -4415,6 +4618,7 @@ MOD.planner = {
     const u = Planner.ui;
     return '<div class="seg">' + [['list','목록'],['cal','달력'],['todo','할 일']].map(([k, l]) => '<button data-pview="' + k + '" class="' + (u.view === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
       '<button class="btn small" data-pact="privacy" title="화면을 다른 사람에게 보여줄 때 \'개인\' 분류를 잠깐 가립니다 (이 기기에서만)">' + (u.hidePersonal ? '🙈 개인 분류 숨김' : '👁 개인 분류 보임') + '</button>' +
+      (PREVIEW ? '' : '<button class="btn small" data-pact="gsync" title="구글 캘린더와 양방향 동기화 (나만 보임)">' + GCal.label() + '</button>') +
       '<button class="btn primary small" data-padd="' + (u.view === 'todo' ? 'todo' : 'event') + '">' + (u.view === 'todo' ? '＋ 할 일 추가' : '＋ 일정 추가') + '</button>';
   },
   render(){
@@ -4423,7 +4627,7 @@ MOD.planner = {
     if(u.hidePersonal && u.cat === 'personal') u.cat = 'all';
     const mine = Planner.mine().filter(x => !(u.hidePersonal && x.cat === 'personal'));
     const todayLab = Planner.labItems(t, t).filter(x => Planner.covers(x, t)).length;
-    const todayN = mine.filter(x => x.kind !== 'todo' && x.date && Planner.covers(x, t) && !x.done).length;
+    const todayN = mine.filter(x => x.kind !== 'todo' && x.date && Planner.covers(x, t) && !x.done).length + GCal.visible(t, t).length;
     const todoN = mine.filter(x => x.kind === 'todo' && !x.done).length;
     const soon = mine.filter(x => { const d = Planner.due(x); return d && !x.done && !d.late && d.days >= 0 && d.days <= 3; }).length;
     const late = mine.filter(x => { const d = Planner.due(x); return d && !x.done && d.late; }).length;
@@ -4435,12 +4639,13 @@ MOD.planner = {
     h += '<div class="toolbar"><span class="chip sel' + (u.cat === 'all' ? ' on' : '') + '" data-pcat="all">전체</span>' +
       PL_CATS.filter(c => !(u.hidePersonal && c[0] === 'personal')).map(c => '<span class="chip sel' + (u.cat === c[0] ? ' on' : '') + '" data-pcat="' + c[0] + '"><i style="width:8px;height:8px;border-radius:50%;background:' + (u.cat === c[0] ? '#fff' : c[2]) + ';display:inline-block"></i>' + c[1] + '</span>').join('') +
       (canView('calendar') ? '<span class="chip sel' + (u.cat === '__lab' ? ' on' : '') + '" data-pcat="__lab">🏢 연구실</span>' : '') +
+      (GCal.on() ? '<span class="chip sel' + (u.cat === '__g' ? ' on' : '') + '" data-pcat="__g">G 구글</span>' : '') +
       '<label class="chk small" style="margin-left:6px"><input type="checkbox" data-pchk="hideDone"' + (u.hideDone ? ' checked' : '') + '> 완료 숨기기</label>' +
       (canView('calendar') ? '<label class="chk small"><input type="checkbox" data-pchk="showLab"' + (u.showLab ? ' checked' : '') + '> 연구실 일정 함께 보기</label>' : '') +
       '<span class="sp"></span><input data-q placeholder="검색" value="' + esc(u.q) + '" style="width:180px"></div>';
     h += u.view === 'cal' ? Planner.calHTML() : u.view === 'todo' ? Planner.todosHTML() : Planner.listHTML();
-    h += '<div class="hint" style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">🔒 내 플래너는 로그인한 본인에게만 보입니다 (관리자도 볼 수 없음). 🏢 표시는 연구실 일정으로, 여기서는 읽기 전용입니다.' +
-      '<span style="flex:1"></span><button class="btn small" data-pact="import">가져오기</button><button class="btn small" data-pact="export">내보내기</button></div>';
+    h += '<div class="hint" style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">🔒 내 플래너는 로그인한 본인에게만 보입니다 (관리자도 볼 수 없음). 🏢 표시는 연구실 일정으로, 여기서는 읽기 전용입니다.' + (GCal.on() ? ' G 표시는 내 구글 캘린더 일정입니다.' : '') + (GCal.err ? ' <span style="color:var(--danger)">구글 동기화 오류: ' + esc(GCal.err) + '</span>' : '') +
+      '<span style="flex:1"></span><button class="btn small" data-pact="gset">구글 캘린더 연동 설정</button><button class="btn small" data-pact="import">가져오기</button><button class="btn small" data-pact="export">내보내기</button></div>';
     return h;
   },
   async onclick(e){
@@ -4451,6 +4656,8 @@ MOD.planner = {
     if(act){
       if(act.dataset.pact === 'privacy'){ u.hidePersonal = !u.hidePersonal; Planner.saveUi(); toast(u.hidePersonal ? "'개인' 분류를 숨겼습니다 (이 기기에서만)" : "'개인' 분류를 다시 표시합니다"); return render(); }
       if(act.dataset.pact === 'export') return Planner.exportData();
+      if(act.dataset.pact === 'gset') return GCal.modal();
+      if(act.dataset.pact === 'gsync') return GCal.on() && GCal.clientId() ? GCal.sync(true) : GCal.modal();
       if(act.dataset.pact === 'import'){ try{ await Planner.importData(await pickJSONFile()); }catch(err){ toast(err.message, true); } return; }
     }
     const c = e.target.closest('[data-pcat]'); if(c){ u.cat = c.dataset.pcat; Planner.saveUi(); return render(); }
@@ -4459,8 +4666,9 @@ MOD.planner = {
     const row = e.target.closest('.pl-item');
     if(row){
       if(row.dataset.evid) return Cal.openEvent(row.dataset.evid);
+      if(String(row.dataset.pid).startsWith('g:')){ const gi = GCal.find(row.dataset.pid); if(gi && e.target.closest('[data-popen]')) return Planner.edit(gi); return; }
       const it = S.planner[row.dataset.pid]; if(!it) return;
-      if(e.target.closest('[data-ptoggle]')){ it.done = !it.done; dbUpdate('planner', it.id, { done: it.done, uid: ME.uid, updatedAt: Date.now() }); return render(); }
+      if(e.target.closest('[data-ptoggle]')){ it.done = !it.done; dbUpdate('planner', it.id, { done: it.done, uid: ME.uid }); return render(); }
       if(e.target.closest('[data-popen]')) return Planner.edit(it);
       return;
     }
