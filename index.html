@@ -490,6 +490,27 @@
   .pl-b.crit{background:var(--danger-soft);color:var(--danger)} .pl-b.warn{background:#fff1dc;color:#b45309} .pl-b.ok{background:var(--ok-soft);color:var(--ok)}
   .pl-b.lab{background:var(--accent-soft);color:var(--accent)}
   .pl-b.g{background:#e8f0fe;color:#1a56c4}
+  .me-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:11px;margin:4px 0 18px}
+  .me-tile{background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px 15px 13px;box-shadow:var(--sh-sm);cursor:pointer;text-align:left;font:inherit;color:inherit;transition:transform .1s,box-shadow .1s;min-width:0}
+  .me-tile:hover{transform:translateY(-1px);box-shadow:var(--sh-md, 0 4px 14px rgba(20,22,40,.09))}
+  .me-tile .ml{font-size:11.5px;color:var(--muted);font-weight:700}
+  .me-tile .mv{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+  .me-tile .mv small{font-size:12px;font-weight:600;color:var(--muted);margin-left:3px}
+  .me-tile .ms{font-size:12px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .me-tile.hot .mv{color:var(--danger)} .me-tile.warm .mv{color:#b45309}
+  .bg-bar{height:8px;background:#eceef4;border-radius:6px;overflow:hidden;min-width:90px}
+  .bg-bar i{display:block;height:100%;background:var(--accent);border-radius:6px}
+  .bg-bar.low i{background:#d97706} .bg-bar.over i{background:var(--danger)}
+  .bg-card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--sh-sm);margin-bottom:12px;overflow:hidden}
+  .bg-card summary{display:grid;grid-template-columns:minmax(150px,1.3fr) repeat(3,minmax(96px,.8fr)) minmax(120px,1fr) 46px;gap:12px;align-items:center;padding:13px 16px;cursor:pointer;list-style:none}
+  .bg-card summary::-webkit-details-marker{display:none}
+  .bg-card .bn{font-weight:700} .bg-card .bn small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bg-card .num{text-align:right;font-variant-numeric:tabular-nums} .bg-card .num small{display:block;color:var(--muted);font-size:11px;font-weight:600}
+  .bg-card table{width:100%;border-collapse:collapse;font-size:13px;border-top:1px solid var(--border)}
+  .bg-card td,.bg-card th{padding:7px 16px;border-bottom:1px solid #f0f1f6;text-align:right;font-variant-numeric:tabular-nums}
+  .bg-card th{font-size:11.5px;color:var(--muted);font-weight:700} .bg-card td:first-child,.bg-card th:first-child{text-align:left}
+  .bg-card tr.over td{color:var(--danger);font-weight:600} .bg-card tr.low td:nth-child(4){color:#b45309;font-weight:600}
+  @media (max-width:820px){ .bg-card summary{grid-template-columns:1fr 1fr} }
   .pl-gi{width:20px;height:20px;border-radius:6px;background:#e8f0fe;color:#1a56c4;font-weight:800;font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
   .pl-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .pl-cal .dow{font-size:12px;color:var(--muted);text-align:center;padding:4px 0;font-weight:700}
@@ -618,7 +639,7 @@
 const FIREBASE_CONFIG = { apiKey: "AIzaSyD21dnh8GrazqmNvQPXLrOCOLqs4j9o4tg", authDomain: "aml-mag.firebaseapp.com", projectId: "aml-mag", storageBucket: "aml-mag.firebasestorage.app", messagingSenderId: "1051520639327", appId: "1:1051520639327:web:df6b9f48250082c66e56ea", measurementId: "G-XY3QST8EHJ" };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '2.0';
+const APP_VERSION = '2.1';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -736,6 +757,7 @@ const ICON = {
   admin:'<circle cx="6" cy="5.3" r="2.4"/><path d="M1.8 13.5c.4-2.4 2.1-3.8 4.2-3.8s3.8 1.4 4.2 3.8M11 3.2a2.2 2.2 0 0 1 0 4.2M12.2 9.9c1.3.5 2 1.7 2.2 3.6"/>',
   backup:'<path d="M3 4.5C3 3.1 5.2 2 8 2s5 1.1 5 2.5S10.8 7 8 7 3 5.9 3 4.5z"/><path d="M3 4.5v7C3 12.9 5.2 14 8 14s5-1.1 5-2.5v-7M3 8c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5"/>',
   suggest:'<path d="M2.5 3.5h11v7.5H7l-3 2.5V11H2.5z"/><path d="M5.5 6.3h5M5.5 8.3h3"/>',
+  contacts:'<path d="M3.5 2.5h9v11h-9z"/><circle cx="8" cy="6.6" r="1.6"/><path d="M5.6 11c.4-1.4 1.3-2 2.4-2s2 .6 2.4 2"/>',
   planner:'<path d="M3 2.5h10v11H3z"/><path d="M5.5 6l1.2 1.2L9 5M5.5 10.2h5"/>',
   guide:'<path d="M8 3.4C6.7 2.3 4.9 2 2.6 2v11.2c2.3 0 4.1.3 5.4 1.4 1.3-1.1 3.1-1.4 5.4-1.4V2c-2.3 0-4.1.3-5.4 1.4zM8 3.4v11.2"/>'
 };
@@ -748,6 +770,7 @@ const MENUS = [
   { key:'presence',  label:'재실 현황',     group:'연구실' },
   { key:'minutes',   label:'발표 순서',     group:'연구실' },
   { key:'suggest',   label:'건의사항',      group:'연구실' },
+  { key:'contacts',  label:'연락처·링크',    group:'연구실' },
   { key:'fund',      label:'연구비 지급신청', group:'연구 관리' },
   { key:'deadlines', label:'마감·성과',     group:'연구 관리' },
   { key:'equipment', label:'장비·물품',     group:'연구 관리' },
@@ -765,13 +788,15 @@ const DEFAULT_PERMS = {
   fund:      { view: ALL, edit: ['admin','grad'] },
   deadlines: { view: ALL, edit: ['admin','grad','intern'] },
   equipment: { view: ALL, edit: ['admin','grad'] },
-  suggest:   { view: ALL, edit: ['admin'] }
+  suggest:   { view: ALL, edit: ['admin'] },
+  contacts:  { view: ALL, edit: ['admin','grad'] }
 };
 const PERM_DESC = {
   notices:'공지 작성·수정', calendar:'연구실 일정 등록·수정 (개인 일정은 누구나)', timetable:'시간표 편집',
   presence:'(재실 상태는 각자 본인 것만 변경)', minutes:'발표 순서 관리', fund:'연구비 신청 내역 편집',
   deadlines:'마감·성과 항목 등록·수정', equipment:'장비·재고 등록, 구매요청 승인 (예약·구매요청은 누구나)',
-  suggest:'건의 답변·상태 변경·삭제 (글쓰기와 공감은 누구나)'
+  suggest:'건의 답변·상태 변경·삭제 (글쓰기와 공감은 누구나)',
+  contacts:'외부 연락처·링크·라이선스 등록·수정 (본인 연락처는 누구나)'
 };
 function perms(){
   const p = (S.app && S.app.perms) || {}; const out = {};
@@ -797,7 +822,7 @@ const S = {
   app:null, presentation:null, appLoaded:false,
   users:{}, notices:{}, events:{}, timetables:{}, deadlines:{}, minutes:{},
   fundProjects:{}, fundBatches:{}, equipment:{}, reservations:{}, supplies:{}, purchases:{},
-  suggestions:{}, achievements:{}, noticeComments:{}, planner:{}
+  suggestions:{}, achievements:{}, noticeComments:{}, planner:{}, directory:{}
 };
 const vals = o => Object.values(o || {});
 let ME = null, MODE = null, BE = null, AU = null, FB = null;
@@ -966,7 +991,7 @@ function collInto(store, after){
 }
 const COLL_MENU = { notices:'notices', noticeComments:'notices', timetables:'timetable', deadlines:'deadlines', fundProjects:'fund', fundBatches:'fund',
                     equipment:'equipment', reservations:'equipment', supplies:'equipment', purchases:'equipment',
-                    suggestions:'suggest', achievements:'deadlines' };
+                    suggestions:'suggest', achievements:'deadlines', directory:'contacts' };
 let permSig = '';
 const evShared = {}, evMine = {};
 function mergeEvents(){ for(const k in S.events) delete S.events[k]; Object.assign(S.events, evShared, evMine); }
@@ -1303,7 +1328,7 @@ function startApp(){
 }
 function teardownApp(){
   APP_STARTED = false; unsubAll(); permSig = '';
-  for(const k of ['users','notices','events','timetables','deadlines','minutes','fundProjects','fundBatches','equipment','reservations','supplies','purchases','suggestions','achievements','noticeComments','planner']) for(const id in S[k]) delete S[k][id];
+  for(const k of ['users','notices','events','timetables','deadlines','minutes','fundProjects','fundBatches','equipment','reservations','supplies','purchases','suggestions','achievements','noticeComments','planner','directory']) for(const id in S[k]) delete S[k][id];
   for(const k in evShared) delete evShared[k]; for(const k in evMine) delete evMine[k];
   S.app = null; S.presentation = null; S.appLoaded = false;
   if(typeof Fund !== 'undefined') Fund.reset();
@@ -1398,6 +1423,40 @@ MOD.dashboard = {
       if(S.appLoaded && !vals(S.timetables).length && roster().length <= 1) h += '<div class="alert info">📦 처음 사용하시나요? 함께 제공된 <b>연구실_초기데이터.json</b>을 불러오면 명단·2026-2학기 시간표·연구비 데이터가 채워집니다.<button class="btn small primary" data-go="backup">초기 데이터 불러오기</button></div>';
     }
     const unread = vals(S.notices).filter(n => !(n.readBy || []).includes(ME.uid));
+    /* 오늘의 나 — 내 것만 모아 보기 */
+    {
+      const tiles = []; const tile = (go, label, val, unit, sub, cls) => tiles.push('<button class="me-tile ' + (cls || '') + '" data-go="' + go + '"><div class="ml">' + label + '</div><div class="mv">' + val + '<small>' + unit + '</small></div><div class="ms">' + esc(sub || '') + '</div></button>');
+      if(canView('calendar')){
+        const mineT = Cal.items(t, t).filter(o => (o.kind === 'event' && ((o.ev.type === 'personal' && o.ev.uid === ME.uid) || o.mine)) || (o.kind === 'pl' && o.pl.g));
+        const nowHM = new Date().toTimeString().slice(0, 5);
+        const next = mineT.find(o => o.timeLabel === '종일' || o.timeLabel.slice(0, 5) >= nowHM) || mineT[0];
+        tile('calendar', '오늘 내 일정', mineT.length, '건', next ? (next.timeLabel === '종일' ? '' : next.timeLabel.slice(0, 5) + ' ') + next.title.replace(/^🔒 |^G /, '') : '오늘은 내 일정이 없습니다');
+        const td = Planner.mine().filter(x => x.kind === 'todo' && !x.done);
+        const late = td.filter(x => { const d = Planner.due(x); return d && d.late; }).length, tdy = td.filter(x => x.dueDate === t).length;
+        tile('calendar', '내 할 일', td.length, '건', late ? '지연 ' + late + '건' + (tdy ? ' · 오늘 ' + tdy + '건' : '') : tdy ? '오늘까지 ' + tdy + '건' : td.length ? '급한 기한 없음' : '모두 끝냈습니다', late ? 'hot' : tdy ? 'warm' : '');
+      }
+      if(canView('deadlines')){
+        const dl = vals(S.deadlines).filter(d => (d.owners || []).includes(ME.name) && !Deadline.isDone(d)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        const n0 = dl[0]; const dd = n0 ? diffDays(n0.date, t) : null;
+        tile('deadlines', '내 담당 마감', dl.length, '건', n0 ? (dd < 0 ? 'D+' + (-dd) : dd === 0 ? 'D-day' : 'D-' + dd) + ' ' + n0.title : '담당 마감이 없습니다', n0 && dd <= 3 ? 'hot' : n0 && dd <= 7 ? 'warm' : '');
+      }
+      if(canView('fund')){
+        let n = 0, nw = 0, rj = 0;
+        for(const b of vals(S.fundBatches)){ if(b.applied && !b.rejected) continue; for(const e of (b.entries || [])){ if(e.user !== ME.name && e.writer !== ME.name) continue; n++; if(!e.written) nw++; if(b.rejected) rj++; } }
+        tile('fund', '내 지급신청 (신청 전)', n, '건', rj ? '반려 ' + rj + '건' + (nw ? ' · 미작성 ' + nw + '건' : '') : nw ? '작성 미완료 ' + nw + '건' : n ? '교수님 신청 대기' : '진행 중인 건이 없습니다', rj ? 'hot' : nw ? 'warm' : '');
+      }
+      if(canView('notices')) tile('notices', '안 읽은 공지', unread.length, '건', unread.length ? unread.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0].title : '모두 읽었습니다', unread.length ? 'warm' : '');
+      if(canView('equipment')){
+        const rs = vals(S.reservations).filter(r => r.date === t && r.uid === ME.uid).sort((a, b) => String(a.start).localeCompare(String(b.start)));
+        const pr = vals(S.purchases).filter(x => x.uid === ME.uid && x.status === '요청').length;
+        tile('equipment', '오늘 내 장비 예약', rs.length, '건', rs.length ? rs[0].start + '–' + rs[0].end + ' ' + ((S.equipment[rs[0].equipId] || {}).name || '') : pr ? '처리 대기 구매요청 ' + pr + '건' : '예약이 없습니다');
+      }
+      if(canView('contacts')){
+        const ex = Dir.licenses().filter(x => x.expires && diffDays(x.expires, t) <= 30);
+        if(ex.length) tile('contacts', '라이선스 만료 임박', ex.length, '건', ex[0].title + ' · ' + Dir.dday(ex[0].expires).label, diffDays(ex[0].expires, t) <= 7 ? 'hot' : 'warm');
+      }
+      if(tiles.length) h += '<div class="me-strip">' + tiles.join('') + '</div>';
+    }
     if(canView('notices') && unread.length) h += '<div class="alert info">📢 읽지 않은 공지 <b>' + unread.length + '건</b> — ' + esc(unread.sort((a,b) => (b.createdAt||0) - (a.createdAt||0))[0].title) + '<button class="btn small" data-go="notices">보기</button></div>';
 
     const cards = [];
@@ -2556,7 +2615,7 @@ MOD.admin = {
    백업 · 복원
    ================================================================= */
 const BACKUP_COLLS = { users:'구성원 계정', notices:'공지사항', noticeComments:'공지 댓글', events:'일정', timetables:'시간표', deadlines:'마감 트래커',
-  fundProjects:'연구비 과제', fundBatches:'연구비 신청차수', equipment:'장비', reservations:'장비 예약', supplies:'소모품', purchases:'구매 요청', suggestions:'건의사항', achievements:'연구 성과', settings:'설정(명단·권한·발표순서)' };
+  fundProjects:'연구비 과제', fundBatches:'연구비 신청차수', equipment:'장비', reservations:'장비 예약', supplies:'소모품', purchases:'구매 요청', suggestions:'건의사항', achievements:'연구 성과', directory:'연락처·링크·라이선스', settings:'설정(명단·권한·발표순서)' };
 const Backup = {
   build(){
     const data = {};
@@ -2961,6 +3020,47 @@ const Fund = (() => {
     }
     return h;
   }
+  /* 과제별 예산 현황 — 비목 예산 대비 집행액·잔액 (반려 차수 제외, 전체 기간) */
+  function budgetRows(p){
+    const m = {}; let spent = 0;
+    for(const b of state.batches){ if(b.projectId !== p.id || b.rejected) continue; for(const e of (b.entries || [])){ const it = String(e.item || '').trim() || '(비목 미지정)'; const a = Number(e.amount) || 0; m[it] = (m[it] || 0) + a; spent += a; } }
+    const buds = p.budgets || {}; const items = Object.keys(buds); for(const it in m) if(!items.includes(it)) items.push(it);
+    const rows = items.map(it => { const has = Object.prototype.hasOwnProperty.call(buds, it) && Number(buds[it]) > 0; const budget = Number(buds[it]) || 0, sp = m[it] || 0; return { item: it, has, budget, spent: sp, remain: budget - sp, rate: budget ? sp / budget : null }; });
+    const budget = rows.reduce((a, r) => a + r.budget, 0);
+    return { rows, budget, spent, remain: budget - spent, rate: budget ? spent / budget : null };
+  }
+  const bgCls = r => r.rate === null ? '' : r.rate > 1 ? 'over' : r.rate >= 0.9 ? 'low' : '';
+  const bgBar = r => '<div class="bg-bar ' + bgCls(r) + '"><i style="width:' + (r.rate === null ? 0 : Math.min(100, Math.round(r.rate * 100))) + '%"></i></div>';
+  const bgPct = r => r.rate === null ? '–' : Math.round(r.rate * 100) + '%';
+  function budgetTSV(){
+    const L = [['과제', '비목', '예산', '집행액', '잔액', '집행률'].join('\t')];
+    for(const p of state.projects){ const B = budgetRows(p); for(const r of B.rows) L.push([p.short || p.name, r.item, r.budget, r.spent, r.remain, bgPct(r)].join('\t')); L.push([p.short || p.name, '합계', B.budget, B.spent, B.remain, bgPct(B)].join('\t')); }
+    return L.join('\n');
+  }
+  function renderBudgetOverview(){
+    const all = state.projects.map(p => ({ p, B: budgetRows(p) }));
+    const tb = all.reduce((a, x) => a + x.B.budget, 0), ts = all.reduce((a, x) => a + x.B.spent, 0);
+    const over = all.reduce((a, x) => a + x.B.rows.filter(r => r.has && r.remain < 0).length, 0), low = all.reduce((a, x) => a + x.B.rows.filter(r => r.has && r.remain >= 0 && r.rate >= 0.9).length, 0);
+    let h = '<h2 class="section">과제별 예산 현황 <span class="hint" style="font-weight:400">비목 예산 대비 집행액 · 전체 기간 · 반려된 차수 제외 · 예산은 각 과제 화면의 비목 카드에서 입력</span></h2>';
+    h += '<div class="stats"><div class="stat"><div class="sl">비목 예산 합계</div><div class="sv">' + fmt(tb) + '<span class="su">원</span></div></div>' +
+      '<div class="stat"><div class="sl">집행액</div><div class="sv">' + fmt(ts) + '<span class="su">원</span></div></div>' +
+      '<div class="stat"><div class="sl">잔액</div><div class="sv" style="' + (tb - ts < 0 ? 'color:var(--danger)' : '') + '">' + fmt(tb - ts) + '<span class="su">원</span></div></div>' +
+      '<div class="stat"><div class="sl"><span class="dot" style="background:var(--danger)"></span>예산 초과 비목</div><div class="sv">' + over + '<span class="su">개</span></div></div>' +
+      '<div class="stat"><div class="sl"><span class="dot" style="background:#d97706"></span>90% 이상 집행</div><div class="sv">' + low + '<span class="su">개</span></div></div></div>';
+    h += '<div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button class="btn small" data-budcopy>표 복사 (엑셀 붙여넣기용)</button></div>';
+    for(const { p, B } of all){
+      h += '<details class="bg-card"' + (B.rows.some(r => r.has && r.remain < 0) ? ' open' : '') + '><summary><div class="bn">' + esc(p.short || p.name) + '<small>' + esc(p.name || '') + (p.period ? ' · ' + esc(p.period) : '') + '</small></div>' +
+        '<div class="num"><small>비목 예산</small>' + (B.budget ? fmt(B.budget) : '미설정') + '</div><div class="num"><small>집행액</small>' + fmt(B.spent) + '</div>' +
+        '<div class="num" style="' + (B.budget && B.remain < 0 ? 'color:var(--danger);font-weight:700' : '') + '"><small>잔액</small>' + (B.budget ? fmt(B.remain) : '–') + '</div>' + bgBar(B) + '<div class="num" style="font-weight:700">' + bgPct(B) + '</div></summary>';
+      if(!B.rows.length) h += '<div class="hint" style="padding:10px 16px;border-top:1px solid var(--border)">비목 예산과 집행 내역이 없습니다.</div>';
+      else h += '<table><thead><tr><th>비목</th><th>예산</th><th>집행액</th><th>잔액</th><th style="width:150px">집행률</th><th style="width:50px"></th></tr></thead><tbody>' +
+        B.rows.map(r => '<tr class="' + (r.has ? bgCls(r) : '') + '"><td>' + esc(r.item) + '</td><td>' + (r.has ? fmt(r.budget) : '<span class="muted">미설정</span>') + '</td><td>' + fmt(r.spent) + '</td><td>' + (r.has ? fmt(r.remain) : '–') + '</td><td>' + bgBar(r) + '</td><td>' + bgPct(r) + '</td></tr>').join('') +
+        '</tbody></table><div style="padding:8px 16px;display:flex;justify-content:space-between;align-items:center"><span class="hint">총 연구비 ' + (p.budget ? fmt(p.budget) + '원' : '미입력') + (p.manager ? ' · 책임자 ' + esc(p.manager) : '') + '</span><button class="btn small" data-fview="' + p.id + '">이 과제 열기 ›</button></div>';
+      h += '</details>';
+    }
+    if(!all.length) h += '<div class="empty">등록된 과제가 없습니다.</div>';
+    return h;
+  }
   function renderReadme(){
     return '<div class="readme"><h2>연구비 지급신청 — 사용 안내</h2>' +
     '<h3>1. 화면 구성</h3><ul><li><b>전체 보기</b> — 모든 과제의 신청차수를 한눈에 봅니다(읽기 전용). 항목을 클릭하면 내역이 펼쳐집니다.</li>' +
@@ -2980,7 +3080,7 @@ const Fund = (() => {
     '<li>내역·차수·첨부를 삭제하면 파일은 지우지 않고 <code>_정리보관</code> 폴더로 옮깁니다. <b>증빙없음</b> 배지는 파일이 없는 내역 수입니다.</li></ul></div>';
   }
   function refreshBudgets(){
-    if(ui.view === 'all' || ui.view === 'readme') return;
+    if(ui.view === 'all' || ui.view === 'readme' || ui.view === 'budget') return;
     const p = state.projects.find(x => x.id === ui.view); const el = $('#view .budgets');
     if(p && el){ el.outerHTML = renderBudgets(p); applyRO(); }
   }
@@ -3017,8 +3117,8 @@ const Fund = (() => {
     },
     render(){
       ensure();
-      if(ui.view !== 'all' && ui.view !== 'readme' && !state.projects.find(p => p.id === ui.view)) ui.view = 'all';
-      let h = '<div class="fund-top"><div class="pchips"><button class="pchip' + (ui.view === 'all' ? ' on' : '') + '" data-fview="all">전체 보기</button>' +
+      if(ui.view !== 'all' && ui.view !== 'readme' && ui.view !== 'budget' && !state.projects.find(p => p.id === ui.view)) ui.view = 'all';
+      let h = '<div class="fund-top"><div class="pchips"><button class="pchip' + (ui.view === 'all' ? ' on' : '') + '" data-fview="all">전체 보기</button><button class="pchip' + (ui.view === 'budget' ? ' on' : '') + '" data-fview="budget">📊 예산 현황</button>' +
         state.projects.map(p => '<button class="pchip' + (ui.view === p.id ? ' on' : '') + '" data-fview="' + p.id + '">' + esc(p.short || p.name) + '</button>').join('') +
         '<button class="pchip' + (ui.view === 'readme' ? ' on' : '') + '" data-fview="readme">사용 안내</button></div></div>';
       if(!canEditF()) h += '<div class="ro-note">👀 열람 전용입니다. 편집은 관리자가 권한을 준 구성원만 할 수 있습니다.</div>';
@@ -3031,13 +3131,15 @@ const Fund = (() => {
       let body;
       if(ui.view === 'all') body = renderOverview();
       else if(ui.view === 'readme') body = renderReadme();
+      else if(ui.view === 'budget') body = renderBudgetOverview();
       else body = renderProject(state.projects.find(x => x.id === ui.view));
       return '<div id="fundApp">' + h + body + '</div>';
     },
     after(){ applyRO(); },
     onclick(ev){
       ensure();
-      const fv = ev.target.closest('[data-fview]'); if(fv){ ui.view = fv.dataset.fview; return render(); }
+      if(ev.target.closest('[data-budcopy]')){ copyText(budgetTSV()).then(ok => toast(ok ? '예산 현황 표를 복사했습니다 — 엑셀에 붙여넣으세요' : '복사 실패', !ok)); return; }
+      const fv = ev.target.closest('[data-fview]'); if(fv){ if(fv.tagName === 'A') ev.preventDefault(); ui.view = fv.dataset.fview; return render(); }
       const sub = ev.target.closest('button[data-subtab]'); if(sub){ ui.projTab[ui.view] = sub.dataset.subtab; return render(); }
       const sm = ev.target.closest('summary');
       if(sm && !ev.target.closest('[data-act]')){ const d = sm.parentElement; ui.open = ui.open || {}; setTimeout(() => { ui.open[d.dataset.bid] = d.open; }, 0); }
@@ -3982,6 +4084,14 @@ service cloud.firestore {
       allow delete: if canEdit('equipment') || (canAct() && resource.data.uid == request.auth.uid && resource.data.status == '요청');
     }
     match /achievements/{id} { allow read: if canView('deadlines'); allow write: if canEdit('deadlines'); }
+    // 연락처·링크: 본인 연락처(c_본인uid)는 누구나, 나머지는 편집 권한자 (권한 설정 전 기본값: 관리자·대학원생)
+    match /directory/{id} {
+      function dirEdit() { return canEdit('contacts') || (canView('contacts') && !('contacts' in perms()) && role() in ['admin', 'grad']); }
+      allow read: if canView('contacts');
+      allow create, update: if dirEdit() || (canAct() && canView('contacts') && id == 'c_' + request.auth.uid
+        && request.resource.data.kind == 'contact' && mine());
+      allow delete: if dirEdit() || (canAct() && id == 'c_' + request.auth.uid);
+    }
     // 건의사항: 누구나 작성·공감, 답변과 상태 변경은 편집 권한자
     match /suggestions/{id} {
       allow read: if canView('suggest');
@@ -4670,6 +4780,116 @@ const GCal = {
 };
 const canActPlanner = () => isMember() && !PREVIEW;
 Object.assign(Planner.ui, { cat:'all', q:'', hideDone:false, hidePersonal:false });
+
+/* =================================================================
+   연락처 · 링크 · 라이선스 (directory)
+   - contact : 구성원 본인 연락처(c_<uid>) + 편집자가 넣는 외부 연락처
+   - link    : 자주 쓰는 사이트 · 매뉴얼 · 양식
+   - license : 소프트웨어 라이선스 · 공용 계정 (비밀번호는 저장하지 않음)
+   ================================================================= */
+const DIR_LINK_CATS = ['사이트', '매뉴얼', '양식·서식', '기타'];
+const Dir = {
+  tab: 'contact', q: '',
+  canE(){ return canEdit('contacts'); },
+  of(kind){ return vals(S.directory).filter(x => x.kind === kind); },
+  licenses(){ return this.of('license').sort((a, b) => String(a.expires || '9999').localeCompare(String(b.expires || '9999'))); },
+  dday(s){ const d = diffDays(s, todayStr()); return d < 0 ? { cls:'hot', label:'만료됨 (' + (-d) + '일 지남)' } : d === 0 ? { cls:'hot', label:'오늘 만료' } : d <= 30 ? { cls: d <= 7 ? 'hot' : 'warm', label:'D-' + d } : { cls:'', label:'D-' + d }; },
+  hit(...a){ const q = this.q.trim().toLowerCase(); return !q || a.filter(Boolean).join(' ').toLowerCase().includes(q); },
+  people(){
+    const out = [];
+    for(const u of vals(S.users)){ if(!ROLE_KEYS.includes(u.role)) continue; const c = S.directory['c_' + u.id] || {}; out.push({ id:'c_' + u.id, uid: u.id, name: u.name, sub: ROLES[u.role] || '', email: c.email || u.email || '', phone: c.phone || '', seat: c.seat || '', note: c.note || '', color: u.color, ext:false }); }
+    const rank = { '교수':0, '대학원생':1, '학부생':2, '기타':3 }; const grp = n => { const r = roster().find(x => x.name === n); return r ? rank[r.group] ?? 3 : 3; };
+    out.sort((a, b) => grp(a.name) - grp(b.name) || a.name.localeCompare(b.name, 'ko'));
+    for(const c of this.of('contact').filter(x => !String(x.id).startsWith('c_')).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko')))
+      out.push({ id: c.id, uid:'', name: c.name, sub: c.org || '외부', email: c.email || '', phone: c.phone || '', seat: c.seat || '', note: c.note || '', ext:true });
+    return out.filter(x => this.hit(x.name, x.sub, x.email, x.phone, x.seat, x.note));
+  },
+  editContact(id){
+    const self = id === 'c_' + ME.uid; const ext = !String(id || '').startsWith('c_');
+    if(!(self ? canAct() : this.canE())){ toast('수정 권한이 없습니다', true); return; }
+    const c = (id && S.directory[id]) || {}; const u = !ext ? S.users[String(id).slice(2)] : null;
+    openModal({ title: ext ? (id ? '외부 연락처 수정' : '외부 연락처 추가') : (self ? '내 연락처' : (u ? u.name : '') + ' 연락처'), sub: ext ? '교수님 · 행정실 · 업체 담당자 등' : '구성원 모두에게 보입니다. 적고 싶은 것만 적으세요.',
+      body: '<div class="form">' + (ext ? fld('이름', '<input name="name" value="' + esc(c.name || '') + '">') + fld('소속 · 역할', '<input name="org" value="' + esc(c.org || '') + '" placeholder="예: 산학협력단 연구비 담당">') : '') +
+        fld('전화', '<input name="phone" value="' + esc(c.phone || '') + '" placeholder="010-0000-0000">') + fld('이메일', '<input name="email" value="' + esc(c.email || (u ? u.email || '' : '')) + '">') +
+        fld('자리 · 내선', '<input name="seat" value="' + esc(c.seat || '') + '" placeholder="예: 팔달관 233호 / 내선 1234">', true) + fld('비고', '<input name="note" value="' + esc(c.note || '') + '" placeholder="예: 화·목 오전 수업">', true) + '</div>',
+      buttons: [ id && S.directory[id] ? { label: ext ? '삭제' : '내용 지우기', cls:'ghost-danger', left:true, confirm: ext ? '이 연락처를 삭제할까요?' : '입력한 연락처 내용을 지울까요?', onClick: () => dbDel('directory', id) } : null, { label:'취소' },
+        { label:'저장', cls:'primary', onClick: (m) => {
+          const f = readForm(m.el); if(ext && !f.name){ toast('이름을 입력하세요', true); return false; }
+          const data = Object.assign({ kind:'contact', uid: ext ? '' : String(id).slice(2), updatedAt: Date.now(), updatedBy: ME.name }, f);
+          if(!ext) data.name = u ? u.name : ME.name;
+          dbSet('directory', id || newId(), data);
+        } } ] });
+  },
+  editItem(kind, id){
+    if(!this.canE()){ toast('수정 권한이 없습니다', true); return; }
+    const x = (id && S.directory[id]) || { kind, cat:'사이트' }; const lic = kind === 'license';
+    openModal({ title: (lic ? '라이선스 · 공용 계정 ' : '링크 ') + (id ? '수정' : '추가'), sub: lic ? '🔐 비밀번호는 여기에 적지 마세요 — 누가 관리하는지만 적어 두세요.' : '',
+      body: '<div class="form">' + fld(lic ? '이름 (소프트웨어 · 서비스)' : '제목', '<input name="title" value="' + esc(x.title || '') + '" placeholder="' + (lic ? '예: SolidWorks 2026 / MATLAB' : '예: 연구비관리시스템') + '">', true) +
+        (lic ? fld('만료일', '<input type="date" name="expires" value="' + esc(x.expires || '') + '">') + fld('담당자', '<input name="owner" value="' + esc(x.owner || '') + '" placeholder="예: 서민호">') +
+               fld('로그인 ID · 수량', '<input name="account" value="' + esc(x.account || '') + '" placeholder="예: lab@ajou.ac.kr / 5 seats">', true)
+             : fld('분류', '<select name="cat">' + DIR_LINK_CATS.map(c => opt(c, c, x.cat)).join('') + '</select>')) +
+        fld('주소 (URL)', '<input name="url" value="' + esc(x.url || '') + '" placeholder="https://">', true) + fld('설명', '<textarea name="note" placeholder="' + (lic ? '설치 방법, 갱신 절차 등' : '무엇을 할 때 쓰는지') + '">' + esc(x.note || '') + '</textarea>', true) + '</div>',
+      buttons: [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'삭제할까요?', onClick: () => dbDel('directory', id) } : null, { label:'취소' },
+        { label:'저장', cls:'primary', onClick: (m) => {
+          const f = readForm(m.el); if(!f.title){ toast(lic ? '이름을 입력하세요' : '제목을 입력하세요', true); return false; }
+          if(f.url && !safeUrl(f.url)){ toast('주소는 http:// 또는 https:// 로 시작해야 합니다', true); return false; }
+          if(/비밀번호|password|pw\s*[:=]/i.test((f.account || '') + ' ' + (f.note || '')) && lic){ toast('비밀번호는 적지 마세요', true); return false; }
+          const data = Object.assign({}, id ? x : { createdAt: Date.now() }, f, { kind, uid: ME.uid, updatedAt: Date.now(), updatedBy: ME.name }); delete data.id;
+          dbSet('directory', id || newId(), data);
+        } } ] });
+  }
+};
+MOD.contacts = {
+  hdr(){
+    const t = Dir.tab;
+    return '<div class="seg">' + [['contact','연락처'],['link','링크 · 매뉴얼'],['license','라이선스 · 계정']].map(([k, l]) => '<button data-dtab2="' + k + '" class="' + (t === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+      (t === 'contact' ? (canAct() ? '<button class="btn small" data-dact="me">내 연락처 수정</button>' : '') + (Dir.canE() ? '<button class="btn primary small" data-dact="addc">＋ 외부 연락처</button>' : '')
+                       : Dir.canE() ? '<button class="btn primary small" data-dact="add">＋ ' + (t === 'link' ? '링크' : '라이선스') + ' 추가</button>' : '');
+  },
+  render(){
+    const t = Dir.tab; const lnk = (u, txt) => safeUrl(u) ? '<a href="' + esc(safeUrl(u)) + '" target="_blank" rel="noopener" data-stop>' + esc(txt || u) + '</a>' : esc(txt || '');
+    let h = '<div class="toolbar"><input data-q placeholder="검색" value="' + esc(Dir.q) + '" style="width:220px"><span class="sp"></span><span class="hint">' +
+      (t === 'contact' ? '본인 줄을 누르면 내 연락처를 고칠 수 있습니다.' : t === 'link' ? '제목을 누르면 새 탭으로 열립니다.' : '🔐 비밀번호는 적지 않습니다. 만료 30일 전부터 홈 화면에 표시됩니다.') + '</span></div>';
+    if(t === 'contact'){
+      const list = Dir.people();
+      if(!list.length) return h + '<div class="empty">표시할 연락처가 없습니다.</div>';
+      h += '<div class="card tbl-wrap" style="padding:8px 12px"><table class="tbl"><thead><tr><th>이름</th><th>구분</th><th>전화</th><th>이메일</th><th>자리 · 내선</th><th>비고</th></tr></thead><tbody>' + list.map(x => {
+        const can = x.ext ? Dir.canE() : (x.uid === ME.uid ? canAct() : Dir.canE());
+        return '<tr class="' + (can ? 'click' : '') + '" data-dc="' + esc(x.id) + '"><td class="nowrap"><span style="display:inline-flex;align-items:center;gap:7px">' + (x.ext ? '' : avatar(x.name, x.color, 'sm')) + '<b>' + esc(x.name) + '</b>' + (x.uid === ME.uid ? ' <span class="chip accent">나</span>' : '') + '</span></td>' +
+          '<td class="nowrap muted">' + esc(x.sub) + '</td><td class="nowrap">' + (x.phone ? '<a href="tel:' + esc(x.phone.replace(/[^0-9+]/g, '')) + '" data-stop>' + esc(x.phone) + '</a>' : '<span class="muted">–</span>') + '</td>' +
+          '<td>' + (x.email ? '<a href="mailto:' + esc(x.email) + '" data-stop>' + esc(x.email) + '</a>' : '<span class="muted">–</span>') + '</td><td>' + esc(x.seat) + '</td><td class="muted">' + esc(x.note) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+      return h;
+    }
+    if(t === 'link'){
+      const list = Dir.of('link').filter(x => Dir.hit(x.title, x.url, x.note, x.cat)).sort((a, b) => String(a.title).localeCompare(String(b.title), 'ko'));
+      if(!list.length) return h + '<div class="empty">등록된 링크가 없습니다.' + (Dir.canE() ? ' [＋ 링크 추가]로 연구비관리시스템, 학교 포털, 장비 매뉴얼 등을 모아 두세요.' : '') + '</div>';
+      for(const c of DIR_LINK_CATS.concat(Array.from(new Set(list.map(x => x.cat).filter(c => !DIR_LINK_CATS.includes(c)))))){
+        const items = list.filter(x => (x.cat || '기타') === c); if(!items.length) continue;
+        h += '<div class="card tbl-wrap" style="padding:8px 12px"><h3 style="margin:6px 0 8px">' + esc(c) + ' <span class="muted small" style="font-weight:500">' + items.length + '</span></h3><table class="tbl"><tbody>' +
+          items.map(x => '<tr><td style="width:34%"><b>' + lnk(x.url, x.title) + '</b></td><td class="muted">' + esc(x.note || '') + '</td><td style="width:60px;text-align:right">' + (Dir.canE() ? '<button class="btn small" data-ditem="' + x.id + '">수정</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>';
+      }
+      return h;
+    }
+    const list = Dir.licenses().filter(x => Dir.hit(x.title, x.owner, x.account, x.note));
+    if(!list.length) return h + '<div class="empty">등록된 라이선스 · 공용 계정이 없습니다.' + (Dir.canE() ? ' [＋ 라이선스 추가]로 만료일과 담당자를 적어 두세요.' : '') + '</div>';
+    h += '<div class="card tbl-wrap" style="padding:8px 12px"><table class="tbl"><thead><tr><th>이름</th><th>만료일</th><th>담당자</th><th>로그인 ID · 수량</th><th>설명</th><th></th></tr></thead><tbody>' + list.map(x => {
+      const d = x.expires ? Dir.dday(x.expires) : null;
+      return '<tr><td><b>' + lnk(x.url, x.title) + '</b></td><td class="nowrap">' + (x.expires ? esc(x.expires) + ' <span class="dday ' + d.cls + '">' + d.label + '</span>' : '<span class="muted">기한 없음</span>') + '</td><td class="nowrap">' + esc(x.owner || '') + '</td><td>' + esc(x.account || '') + '</td><td class="muted">' + esc(x.note || '') + '</td>' +
+        '<td style="width:60px;text-align:right">' + (Dir.canE() ? '<button class="btn small" data-ditem="' + x.id + '">수정</button>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+    return h;
+  },
+  onclick(e){
+    if(e.target.closest('[data-stop]')) return;
+    const tb = e.target.closest('[data-dtab2]'); if(tb){ Dir.tab = tb.dataset.dtab2; Dir.q = ''; return render(); }
+    const a = e.target.closest('[data-dact]');
+    if(a){ const k = a.dataset.dact; if(k === 'me') return Dir.editContact('c_' + ME.uid); if(k === 'addc') return Dir.editContact(null); return Dir.editItem(Dir.tab, null); }
+    const it = e.target.closest('[data-ditem]'); if(it) return Dir.editItem(Dir.tab, it.dataset.ditem);
+    const r = e.target.closest('tr.click[data-dc]'); if(r) return Dir.editContact(r.dataset.dc);
+  },
+  oninput(e){ if(e.target.dataset.q !== undefined){ Dir.q = e.target.value; clearTimeout(this._t); this._t = setTimeout(() => { const pos = e.target.selectionStart; render(); const i = $('#view [data-q]'); if(i){ i.focus(); i.setSelectionRange(pos, pos); } }, 250); } }
+};
 
 /* ---------------- 시작 ---------------- */
 (function boot(){
