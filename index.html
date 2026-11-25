@@ -639,7 +639,7 @@
 const FIREBASE_CONFIG = { apiKey: "AIzaSyD21dnh8GrazqmNvQPXLrOCOLqs4j9o4tg", authDomain: "aml-mag.firebaseapp.com", projectId: "aml-mag", storageBucket: "aml-mag.firebasestorage.app", messagingSenderId: "1051520639327", appId: "1:1051520639327:web:df6b9f48250082c66e56ea", measurementId: "G-XY3QST8EHJ" };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '2.3';
+const APP_VERSION = '2.3.1';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -1737,6 +1737,21 @@ const Cal = {
   },
   whoShort(a){ return a.length <= 3 ? a.join(', ') : a.slice(0, 2).join(', ') + ' 외 ' + (a.length - 2) + '명'; },
   who(o){ return o.who && o.who.length ? '<span class="s" title="' + esc(o.who.join(', ')) + '" style="display:inline-flex;gap:2px;align-items:center">' + o.who.slice(0, 5).map(n => avatar(n, personColor(n), 'sm')).join('') + (o.who.length > 5 ? '+' + (o.who.length - 5) : '') + '</span>' : ''; },
+  /* 저장한 일정이 지금 보는 달·필터에서 안 보이면, 그 달로 옮기고 필터를 켜서 바로 보이게 함 */
+  reveal(ev, isNew){
+    const notes = [];
+    if(ev.type === 'lab' && !this.f.lab){ this.f.lab = true; notes.push("'연구실 일정' 표시를 켰습니다"); }
+    if(ev.type === 'personal' && !this.f.mine){ this.f.mine = true; notes.push("'내 개인 일정' 표시를 켰습니다"); }
+    if(this.f.onlyMe && !(ev.type === 'personal') && !(ev.attendees || []).includes(ME.name)){ this.f.onlyMe = false; notes.push("'내가 참여하는 것만' 필터를 껐습니다"); }
+    if(notes.length) this.saveF();
+    const [y, m] = this.month.split('-').map(Number); const first = new Date(y, m - 1, 1);
+    const gs = addDays(ymd(first), -first.getDay()), ge = addDays(gs, 41);
+    const s = ev.start, e = ev.end || ev.start; const shown = ev.repeat === 'weekly' ? (s <= ge && (!ev.repeatUntil || ev.repeatUntil >= gs)) : (s <= ge && e >= gs);
+    if(!shown && ROUTE === 'calendar'){ this.month = s.slice(0, 7); notes.unshift(Number(s.slice(0, 4)) + '년 ' + Number(s.slice(5, 7)) + '월 달력으로 이동했습니다'); }
+    const d = parseYmd(s);
+    toast((d.getMonth() + 1) + '월 ' + d.getDate() + '일 일정을 ' + (isNew ? '추가' : '저장') + '했습니다' + (notes.length ? ' — ' + notes.join(', ') : ''));
+    if(ROUTE === 'calendar') setTimeout(render, 60);
+  },
   canModify(ev){ return ev.type === 'lab' ? canEdit('calendar') : (ev.uid === ME.uid && canAct()); },
   openEvent(id){
     const ev = S.events[id]; if(!ev) return;
@@ -1801,6 +1816,7 @@ const Cal = {
           const data = Object.assign({}, id ? ev : { uid: ME.uid, ownerName: ME.name, createdAt: Date.now() }, f, { updatedAt: Date.now() });
           delete data.id;
           Promise.resolve(dbSet('events', id || newId(), data)).then(() => { if(data.type === 'personal') GCal.soon(); });
+          Cal.reveal(data, !id);
         } } ] });
   },
   dayModal(d){
