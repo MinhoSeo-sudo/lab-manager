@@ -639,7 +639,7 @@
 const FIREBASE_CONFIG = { apiKey: "AIzaSyD21dnh8GrazqmNvQPXLrOCOLqs4j9o4tg", authDomain: "aml-mag.firebaseapp.com", projectId: "aml-mag", storageBucket: "aml-mag.firebasestorage.app", messagingSenderId: "1051520639327", appId: "1:1051520639327:web:df6b9f48250082c66e56ea", measurementId: "G-XY3QST8EHJ" };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '2.2';
+const APP_VERSION = '2.3';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -741,8 +741,8 @@ function errMsg(e){
 }
 
 /* ---------------- 역할 · 메뉴 · 권한 ---------------- */
-const ROLES = { admin:'관리자', grad:'대학원생', intern:'학부연구생', viewer:'열람전용', pending:'승인대기' };
-const ROLE_KEYS = ['admin','grad','intern','viewer'];
+const ROLES = { admin:'관리자', prof:'교수', grad:'대학원생', intern:'학부연구생', viewer:'열람전용', pending:'승인대기' };
+const ROLE_KEYS = ['admin','prof','grad','intern','viewer'];
 const ALL = ['admin','grad','intern','viewer'];
 const ICON = {
   dashboard:'<path d="M2 7.2 8 2.5l6 4.7V13a1 1 0 0 1-1 1h-3V9.5H6V14H3a1 1 0 0 1-1-1z"/>',
@@ -802,7 +802,8 @@ function perms(){
   for(const k in DEFAULT_PERMS) out[k] = { view: (p[k] && p[k].view) || DEFAULT_PERMS[k].view, edit: (p[k] && p[k].edit) || DEFAULT_PERMS[k].edit };
   return out;
 }
-const isAdmin = () => !!ME && ME.role === 'admin';
+const isAdmin = () => !!ME && (ME.role === 'admin' || ME.role === 'prof');   /* 관리 권한: 관리자 + 교수 */
+const isRoot = () => !!ME && ME.role === 'admin';                               /* 복원·초기화·관리자 계정 관리는 관리자만 */
 const isMember = () => !!ME && ROLE_KEYS.includes(ME.role);
 const canAct = () => isMember() && ME.role !== 'viewer';      /* 본인 일정·예약·구매요청 등 */
 function canView(m){
@@ -1425,7 +1426,7 @@ MOD.dashboard = {
       if(pend.length) h += '<div class="alert info">👤 승인 대기 중인 가입 신청 <b>' + pend.length + '명</b> (' + pend.map(u => esc(u.name)).join(', ') + ')<button class="btn small primary" data-go="admin">승인하러 가기</button></div>';
       const lb = S.app && S.app.lastBackupAt;
       if(S.appLoaded && (!lb || Date.now() - lb > 7 * 86400000)) h += '<div class="alert warn">💾 ' + (lb ? '마지막 전체 백업이 ' + ago(lb) + '입니다.' : '아직 전체 백업 파일을 받은 적이 없습니다.') + ' 일주일에 한 번 백업 파일을 받아두세요.<button class="btn small" data-go="backup">백업하기</button></div>';
-      if(S.appLoaded && !vals(S.timetables).length && roster().length <= 1) h += '<div class="alert info">📦 처음 사용하시나요? 함께 제공된 <b>연구실_초기데이터.json</b>을 불러오면 명단·2026-2학기 시간표·연구비 데이터가 채워집니다.<button class="btn small primary" data-go="backup">초기 데이터 불러오기</button></div>';
+      if(isRoot() && S.appLoaded && !vals(S.timetables).length && roster().length <= 1) h += '<div class="alert info">📦 처음 사용하시나요? 함께 제공된 <b>연구실_초기데이터.json</b>을 불러오면 명단·2026-2학기 시간표·연구비 데이터가 채워집니다.<button class="btn small primary" data-go="backup">초기 데이터 불러오기</button></div>';
     }
     const unread = vals(S.notices).filter(n => !(n.readBy || []).includes(ME.uid));
     /* 오늘의 나 — 내 것만 모아 보기 */
@@ -2494,7 +2495,7 @@ MOD.admin = {
   system(){
     const a = S.app || {};
     const sw = (k, on, title, desc) => '<label class="chk" style="align-items:flex-start;gap:10px;padding:6px 0"><input type="checkbox" data-sys="' + k + '"' + (on ? ' checked' : '') + ' style="margin-top:3px"><span><b>' + title + '</b><div class="small muted" style="line-height:1.6;margin-top:2px">' + desc + '</div></span></label>';
-    return '<div class="hint" style="margin-bottom:12px">이 화면은 관리자에게만 보이고, 여기 있는 설정은 서버 규칙으로도 관리자만 바꿀 수 있습니다.</div>' +
+    return '<div class="hint" style="margin-bottom:12px">이 화면은 관리자와 교수에게만 보이고, 여기 있는 설정은 서버 규칙으로도 관리자·교수만 바꿀 수 있습니다.</div>' +
       '<div class="card" style="max-width:760px"><h3>🔒 삭제 잠금</h3>' +
         sw('lockDelete', lockDel(), '삭제는 관리자만 (본인이 만든 것은 본인도 가능)', '켜 두면 공지 · 연구실 일정 · 마감 · 성과 · 장비 · 소모품 · 링크 · 라이선스 · 시간표와 연구비 신청차수 · 내역을 <b>만든 사람과 관리자만</b> 지울 수 있습니다. 연구비 과제와 비목 카드, 시간표 학기는 관리자만 지울 수 있습니다. 추가 · 수정은 메뉴 권한대로 그대로 됩니다. 이 기능을 넣기 전에 만들어진 항목은 만든 사람 기록이 없어 관리자만 지울 수 있습니다.') +
         '<div class="small muted" style="margin-top:6px">수정 자체를 막고 싶은 메뉴는 [메뉴 권한] 탭에서 그 역할을 "보기"로 바꾸세요.</div></div>' +
@@ -2513,26 +2514,27 @@ MOD.admin = {
     if(pend.length){
       h += '<div class="card" style="border-color:var(--accent-border)"><h3>👤 승인 대기 (' + pend.length + ')</h3><div class="list">' + pend.map(u =>
         '<div class="li">' + avatar(u.name, u.color, 'sm') + '<span class="t"><b>' + esc(u.name) + '</b> <span class="muted small">' + esc(u.email) + ' · ' + fmtTs(u.createdAt) + ' 신청</span></span>' +
-        '<select data-aprole="' + u.id + '">' + ['grad','intern','viewer','admin'].map(r => opt(r, ROLES[r], rn.includes(u.name) ? (roster().find(x => x.name === u.name).group === '학부생' ? 'intern' : 'grad') : 'intern')).join('') + '</select>' +
+        '<select data-aprole="' + u.id + '">' + ['grad','intern','viewer','prof'].concat(isRoot() ? ['admin'] : []).map(r => opt(r, ROLES[r], rn.includes(u.name) ? (roster().find(x => x.name === u.name).group === '학부생' ? 'intern' : 'grad') : 'intern')).join('') + '</select>' +
         '<button class="btn primary small" data-approve="' + u.id + '">승인</button><button class="btn small ghost-danger" data-reject="' + u.id + '">거절</button></div>').join('') + '</div>' +
         '<div class="hint" style="margin-top:8px">이름이 명단과 다르면 승인 후 아래 표에서 고칠 수 있습니다. 거절하면 계정 정보가 삭제되며, 그 사람이 다시 로그인하면 승인 대기로 돌아옵니다.</div></div>';
     }
     h += '<div class="card tbl-wrap" style="padding:8px 12px"><h3 style="margin:6px 0 10px">구성원 계정 (' + mem.length + ')</h3><table class="tbl"><thead><tr><th></th><th>이름</th><th>이메일</th><th>역할</th><th>직위/과정</th><th>색</th><th>가입</th><th></th></tr></thead><tbody>';
     for(const u of mem){
-      const self = u.id === ME.uid;
+      const self = u.id === ME.uid; const lockU = !isRoot() && u.role === 'admin';   /* 교수는 관리자 계정을 바꿀 수 없음 */
       h += '<tr><td>' + avatar(u.name, u.color, 'sm') + '</td><td><input data-uf="name" data-uid="' + u.id + '" value="' + esc(u.name) + '" style="width:110px">' + (rn.includes(u.name) ? '' : ' <button class="btn small" data-toroster="' + u.id + '" title="명단에 이 이름이 없습니다">명단에 추가</button>') + '</td>' +
         '<td class="muted small">' + esc(u.email) + '</td>' +
-        '<td><select data-uf="role" data-uid="' + u.id + '"' + (self ? ' disabled title="자기 자신의 역할은 바꿀 수 없습니다"' : '') + '>' + ROLE_KEYS.map(r => opt(r, ROLES[r], u.role)).join('') + '</select></td>' +
+        '<td><select data-uf="role" data-uid="' + u.id + '"' + (self ? ' disabled title="자기 자신의 역할은 바꿀 수 없습니다"' : lockU ? ' disabled title="관리자 계정은 관리자만 바꿀 수 있습니다"' : '') + '>' + ROLE_KEYS.filter(r => isRoot() || r !== 'admin' || u.role === 'admin').map(r => opt(r, ROLES[r], u.role)).join('') + '</select></td>' +
         '<td><input data-uf="position" data-uid="' + u.id + '" value="' + esc(u.position || '') + '" placeholder="예: 박사과정" style="width:110px"></td>' +
         '<td><input type="color" data-uf="color" data-uid="' + u.id + '" value="' + esc(u.color || hashColor(u.name)) + '" style="width:40px;height:30px;padding:2px"></td>' +
         '<td class="muted small nowrap">' + (u.createdAt ? ymd(new Date(u.createdAt)) : '') + '</td>' +
-        '<td class="nowrap">' + (self ? '<span class="chip accent">나</span>' : '<button class="btn small" data-preview="' + u.id + '" title="이 사람에게 보이는 화면을 확인합니다">👁 미리보기</button> <button class="btn small" data-revoke="' + u.id + '">접근 해제</button>') + '</td></tr>';
+        '<td class="nowrap">' + (self ? '<span class="chip accent">나</span>' : '<button class="btn small" data-preview="' + u.id + '" title="이 사람에게 보이는 화면을 확인합니다">👁 미리보기</button> ' + (lockU ? '' : '<button class="btn small" data-revoke="' + u.id + '">접근 해제</button>')) + '</td></tr>';
     }
     h += '</tbody></table></div>';
     h += '<div class="card"><h3>👁 화면 미리보기</h3><div class="small muted" style="margin-bottom:10px;line-height:1.7">다른 구성원에게 프로그램이 어떻게 보이는지 확인합니다. 메뉴·버튼·시간표 강조가 그 사람 기준으로 바뀌고, 미리보기 중에는 아무것도 저장되지 않습니다. 특정 사람의 화면은 위 표의 [👁 미리보기]를 누르세요. (다른 사람의 비밀 일정은 미리보기에서도 보이지 않습니다)</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">' + ['grad','intern','viewer'].map(r => '<button class="btn" data-prole="' + r + '">' + ROLES[r] + ' 화면 보기</button>').join('') + '</div></div>';
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' + ['prof','grad','intern','viewer'].map(r => '<button class="btn" data-prole="' + r + '">' + ROLES[r] + ' 화면 보기</button>').join('') + '</div></div>';
     h += '<div class="card"><h3>역할 안내</h3><div class="small" style="line-height:1.9">' +
       '<b>관리자</b> — 모든 메뉴 편집, 구성원 승인·역할 변경, 메뉴 권한 설정, 백업·복원<br>' +
+      '<b>교수</b> — 관리자와 같되, 데이터를 통째로 바꿀 수 있는 작업(백업 복원·불러오기, 초기화)과 관리자 계정 변경·관리자 지정은 할 수 없음<br>' +
       '<b>대학원생</b> · <b>학부연구생</b> — [메뉴 권한] 탭에서 정한 대로 보기/편집. 개인 일정·장비 예약·구매 요청·내 재실 상태는 언제나 가능<br>' +
       '<b>열람전용</b> — 보기만 가능 (재실 상태 변경 제외)<br><b>승인대기</b> — 가입만 한 상태, 아무것도 볼 수 없음</div></div>';
     return h;
@@ -2572,7 +2574,7 @@ MOD.admin = {
       fld('현재 학기 (홈·재실현황의 시간표 기준)', '<select id="labSem"><option value="">자동 (가장 최근)</option>' + TT.list().map(t => opt(t.id, t.name || t.id, a.semester)).join('') + '</select>', true) +
       '</div><div style="margin-top:14px"><button class="btn primary" data-act="savelab">저장</button></div></div>' +
       '<div class="card" style="max-width:640px"><h3>연결 정보</h3><div class="small" style="line-height:1.9">모드: <b>' + (MODE === 'demo' ? '체험 모드 (이 브라우저에만 저장)' : 'Firebase (' + esc((FIREBASE_CONFIG || {}).projectId || JSON.parse(localStorage.getItem(LS_FBCFG) || '{}').projectId || '') + ')') + '</b><br>버전: ' + APP_VERSION + '</div>' +
-      (MODE === 'demo' ? '<div style="margin-top:10px"><button class="btn ghost-danger small" data-act="wipedemo">체험 데이터 모두 지우기</button></div>' : '') + '</div>';
+      (MODE === 'demo' && isRoot() ? '<div style="margin-top:10px"><button class="btn ghost-danger small" data-act="wipedemo">체험 데이터 모두 지우기</button></div>' : '') + '</div>';
   },
   saveRoster(r){ S.app = Object.assign({}, S.app, { roster: r }); return dbSet('settings', 'app', { roster: r }, true); },
   onclick(e){
@@ -2582,7 +2584,7 @@ MOD.admin = {
     if(ap){
       const id = ap.dataset.approve; const role = $('[data-aprole="' + id + '"]').value; const u = S.users[id];
       dbUpdate('users', id, { role, approvedAt: Date.now(), approvedBy: ME.name });
-      if(!rosterNames().includes(u.name)){ const r = roster().concat({ name: u.name, group: role === 'intern' ? '학부생' : role === 'admin' ? '교수' : '대학원생', color: u.color }); this.saveRoster(r); }
+      if(!rosterNames().includes(u.name)){ const r = roster().concat({ name: u.name, group: role === 'intern' ? '학부생' : (role === 'admin' || role === 'prof') ? '교수' : '대학원생', color: u.color }); this.saveRoster(r); }
       toast(u.name + '님을 승인했습니다'); return;
     }
     const rj = e.target.closest('[data-reject]');
@@ -2592,9 +2594,9 @@ MOD.admin = {
     const pr = e.target.closest('[data-prole]');
     if(pr){ startPreview({ uid:'__preview', name: ROLES[pr.dataset.prole] + ' (예시)', email:'', role: pr.dataset.prole }); return; }
     const rv = e.target.closest('[data-revoke]');
-    if(rv){ const u = S.users[rv.dataset.revoke]; confirmBox(esc(u.name) + '님의 접근을 해제할까요? (승인대기 상태로 바뀌며 다시 승인할 수 있습니다)', '접근 해제', true).then(ok => ok && dbUpdate('users', u.id, { role:'pending' })); return; }
+    if(rv){ const u = S.users[rv.dataset.revoke]; if(!isRoot() && u.role === 'admin'){ toast('관리자 계정은 관리자만 바꿀 수 있습니다', true); return; } confirmBox(esc(u.name) + '님의 접근을 해제할까요? (승인대기 상태로 바뀌며 다시 승인할 수 있습니다)', '접근 해제', true).then(ok => ok && dbUpdate('users', u.id, { role:'pending' })); return; }
     const tr = e.target.closest('[data-toroster]');
-    if(tr){ const u = S.users[tr.dataset.toroster]; this.saveRoster(roster().concat({ name: u.name, group: u.role === 'intern' ? '학부생' : u.role === 'admin' ? '교수' : '대학원생', color: u.color })); return render(); }
+    if(tr){ const u = S.users[tr.dataset.toroster]; this.saveRoster(roster().concat({ name: u.name, group: u.role === 'intern' ? '학부생' : (u.role === 'admin' || u.role === 'prof') ? '교수' : '대학원생', color: u.color })); return render(); }
     const a = e.target.closest('[data-act]');
     if(a){
       const act = a.dataset.act;
@@ -2613,7 +2615,7 @@ MOD.admin = {
       if(act === 'resetperm'){ S.app = Object.assign({}, S.app, { perms: clone(DEFAULT_PERMS) }); dbSet('settings', 'app', { perms: clone(DEFAULT_PERMS) }, true); return render(); }
       if(act === 'savecid'){ const v = $('#sysCid').value.trim(); if(v && !/\.apps\.googleusercontent\.com$/.test(v)){ toast('클라이언트 ID 형식이 아닙니다 (…apps.googleusercontent.com)', true); return; } S.app = Object.assign({}, S.app, { gcalClientId: v }); dbSet('settings', 'app', { gcalClientId: v }, true).then(() => toast('저장했습니다')); return; }
       if(act === 'savelab'){ const labName = $('#labName').value.trim() || '연구실'; const semester = $('#labSem').value; dbSet('settings', 'app', { labName, semester }, true).then(() => toast('저장했습니다')); return; }
-      if(act === 'wipedemo'){ confirmBox('체험 모드의 모든 데이터를 지울까요?', '모두 지우기', true).then(ok => { if(ok){ BE.wipe(); AU.signOut(); location.reload(); } }); return; }
+      if(act === 'wipedemo'){ if(!isRoot()) return; confirmBox('체험 모드의 모든 데이터를 지울까요?', '모두 지우기', true).then(ok => { if(ok){ BE.wipe(); AU.signOut(); location.reload(); } }); return; }
     }
     const up = e.target.closest('[data-rup]'), dn = e.target.closest('[data-rdown]'), dl = e.target.closest('[data-rdel]');
     if(up || dn){ const r = roster().slice(); const i = Number((up || dn).dataset[up ? 'rup' : 'rdown']); const j = i + (up ? -1 : 1); if(j < 0 || j >= r.length) return; [r[i], r[j]] = [r[j], r[i]]; this.saveRoster(r); return render(); }
@@ -2626,6 +2628,7 @@ MOD.admin = {
     if(t.dataset.uf){
       const v = t.value.trim(); if(t.dataset.uf === 'name' && !v) return;
       if(t.dataset.uf === 'role' && t.dataset.uid === ME.uid) return;
+      if(!isRoot() && ((S.users[t.dataset.uid] || {}).role === 'admin' || (t.dataset.uf === 'role' && v === 'admin'))){ toast('관리자 계정은 관리자만 바꿀 수 있습니다', true); return render(); }
       dbUpdate('users', t.dataset.uid, { [t.dataset.uf]: v }); S.users[t.dataset.uid][t.dataset.uf] = v; return;
     }
     if(t.dataset.rf){ const r = clone(roster()); r[Number(t.dataset.ri)][t.dataset.rf] = t.value.trim(); this.saveRoster(r); }
@@ -2785,11 +2788,12 @@ MOD.backup = {
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="dl">전체 백업 받기</button>' + (MODE === 'fire' ? '<button class="btn" data-act="dlf">첨부파일 포함해서 받기</button>' : '') + '</div>' +
       '<div class="hint" style="margin-top:10px">' + sm.map(([c, n]) => BACKUP_COLLS[c] + ' ' + n).join(' · ') + '</div>' +
       '<div class="hint" style="margin-top:6px">🔒 다른 사람의 비밀 일정은 관리자도 읽을 수 없으므로 백업에 포함되지 않습니다.</div></div>';
-    h += '<div class="card"><h3>♻ 복원 · 불러오기</h3><div class="small" style="line-height:1.8;margin-bottom:12px">아래 파일을 모두 받습니다.<br>• 이 프로그램의 <b>전체 백업 파일</b><br>• 함께 제공된 <b>연구실_초기데이터.json</b> (명단·2026-2학기 시간표·연구비)<br>• <b>기존 연구비 지급신청 프로그램</b>의 백업 JSON ([백업/복원] → 파일로 저장)</div>' +
+    if(!isRoot()) h += '<div class="card"><h3>♻ 복원 · 불러오기</h3><div class="hint" style="line-height:1.7">🔒 백업 복원과 데이터 불러오기는 기존 데이터를 통째로 바꿀 수 있어 <b>관리자</b>만 할 수 있습니다. 백업 파일 받기는 여기서 할 수 있습니다.</div></div></div>';
+    else h += '<div class="card"><h3>♻ 복원 · 불러오기</h3><div class="small" style="line-height:1.8;margin-bottom:12px">아래 파일을 모두 받습니다.<br>• 이 프로그램의 <b>전체 백업 파일</b><br>• 함께 제공된 <b>연구실_초기데이터.json</b> (명단·2026-2학기 시간표·연구비)<br>• <b>기존 연구비 지급신청 프로그램</b>의 백업 JSON ([백업/복원] → 파일로 저장)</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="restore">파일 선택…</button><button class="btn" data-act="paste">붙여넣기로 불러오기</button></div></div></div>';
     h += '<div class="card"><h3>🕘 자동 스냅샷 (이 브라우저)</h3><div class="small muted" style="margin-bottom:10px">관리자가 접속하면 하루 한 번 이 브라우저에 자동 저장됩니다 (최근 14개). 브라우저 데이터를 지우면 함께 사라지므로 [전체 백업 받기]를 대신하지는 않습니다.</div>' +
       (this.snaps === null ? '<div class="hint">불러오는 중…</div>' : this.snaps.length ? '<div class="list">' + this.snaps.map(s => '<div class="li"><b>' + esc(s.key.replace('demo_', '(체험) ')) + '</b><span class="s">' + Math.round(s.size / 1024) + 'KB</span><span style="flex:1"></span>' +
-        '<button class="btn small" data-snapdl="' + esc(s.key) + '">받기</button><button class="btn small" data-snaprs="' + esc(s.key) + '">이 시점으로 복원…</button></div>').join('') + '</div>' : '<div class="hint">아직 스냅샷이 없습니다.</div>') +
+        '<button class="btn small" data-snapdl="' + esc(s.key) + '">받기</button>' + (isRoot() ? '<button class="btn small" data-snaprs="' + esc(s.key) + '">이 시점으로 복원…</button>' : '') + '</div>').join('') + '</div>' : '<div class="hint">아직 스냅샷이 없습니다.</div>') +
       '<div style="margin-top:10px"><button class="btn small" data-act="snapnow">지금 스냅샷 저장</button></div></div>';
     return h;
   },
@@ -2799,6 +2803,7 @@ MOD.backup = {
       const act = a.dataset.act;
       if(act === 'dl') return Backup.download(false);
       if(act === 'dlf') return Backup.download(true).catch(err => toast(errMsg(err), true));
+      if((act === 'restore' || act === 'paste') && !isRoot()){ toast('복원·불러오기는 관리자만 할 수 있습니다', true); return; }
       if(act === 'restore'){ try{ Backup.restoreDialog(await pickJSONFile()); }catch(err){ toast(err.message, true); } return; }
       if(act === 'paste'){
         openModal({ title:'JSON 붙여넣기', body:'<textarea id="pasteJson" style="width:100%;height:220px;font-family:ui-monospace,Consolas,monospace;font-size:11.5px" placeholder="기존 연구비 프로그램의 [클립보드로 복사] 내용 등을 붙여넣으세요"></textarea>',
@@ -2808,7 +2813,7 @@ MOD.backup = {
       if(act === 'snapnow'){ await Backup.autoSnapshot(true); this.snaps = null; render(); toast('스냅샷을 저장했습니다'); return; }
     }
     const sd = e.target.closest('[data-snapdl]'); if(sd){ downloadFile('스냅샷_' + sd.dataset.snapdl + '.json', await Backup.snapGet(sd.dataset.snapdl)); return; }
-    const sr = e.target.closest('[data-snaprs]'); if(sr){ Backup.restoreDialog(JSON.parse(await Backup.snapGet(sr.dataset.snaprs))); }
+    const sr = e.target.closest('[data-snaprs]'); if(sr){ if(!isRoot()) return; Backup.restoreDialog(JSON.parse(await Backup.snapGet(sr.dataset.snaprs))); }
   }
 };
 
@@ -3152,7 +3157,7 @@ const Fund = (() => {
       else if(FS_OK && !attachRoot && ui.view !== 'readme') h += '<div class="alert warn">📁 ' + (attachPendingRoot ? '이 컴퓨터에 연결해 둔 증빙 폴더가 있습니다. 브라우저 권한만 다시 확인하면 됩니다.' : '이 컴퓨터에 <b>증빙 공유폴더</b>가 연결되지 않았습니다. 한 번 연결하면 증빙 파일이 과제·구분·차수·비목 폴더로 자동 저장됩니다.') +
         '<button class="btn small primary" data-act="' + (attachPendingRoot ? 'refolder' : 'folder') + '">' + (attachPendingRoot ? '다시 연결' : '폴더 연결') + '</button></div>';
       if(!state.projects.length && ui.view !== 'readme'){
-        h += '<div class="empty">등록된 과제가 없습니다.' + (isAdmin() ? '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center"><button class="btn primary" data-go="backup">기존 프로그램 데이터 / 초기 데이터 가져오기</button>' + (canEditF() ? '<button class="btn" data-act="addProject">＋ 과제 직접 추가</button>' : '') + '</div>' : '') + '</div>';
+        h += '<div class="empty">등록된 과제가 없습니다.' + (isRoot() ? '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center"><button class="btn primary" data-go="backup">기존 프로그램 데이터 / 초기 데이터 가져오기</button>' + (canEditF() ? '<button class="btn" data-act="addProject">＋ 과제 직접 추가</button>' : '') + '</div>' : '') + '</div>';
         return '<div id="fundApp">' + h + '</div>';
       }
       let body;
@@ -4035,9 +4040,10 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function userPath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
     function role() { return signedIn() && exists(userPath()) ? get(userPath()).data.role : 'none'; }
-    function isAdmin() { return role() == 'admin'; }
-    function isMember() { return role() in ['admin', 'grad', 'intern', 'viewer']; }
-    function canAct() { return role() in ['admin', 'grad', 'intern']; }
+    function isRoot() { return role() == 'admin'; }                 // 관리자
+    function isAdmin() { return role() in ['admin', 'prof']; }      // 관리 권한: 관리자 + 교수
+    function isMember() { return role() in ['admin', 'prof', 'grad', 'intern', 'viewer']; }
+    function canAct() { return role() in ['admin', 'prof', 'grad', 'intern']; }
     function perms() {
       return exists(/databases/$(database)/documents/settings/app)
         ? get(/databases/$(database)/documents/settings/app).data.get('perms', {}) : {};
@@ -4067,14 +4073,15 @@ service cloud.firestore {
     // 구성원 계정: 가입 시 승인대기로만 생성 가능, 본인은 이름·재실상태 등만 수정 가능
     match /users/{uid} {
       allow read: if isMember() || (signedIn() && request.auth.uid == uid);
-      allow create: if isAdmin() || (signedIn() && request.auth.uid == uid && (
+      allow create: if isRoot() || (isAdmin() && request.resource.data.role != 'admin') || (signedIn() && request.auth.uid == uid && (
         request.resource.data.role == 'pending' ||
         (request.resource.data.role == 'admin'
           && !exists(/databases/$(database)/documents/meta/bootstrap)
           && existsAfter(/databases/$(database)/documents/meta/bootstrap))));
-      allow update: if isAdmin() || (signedIn() && request.auth.uid == uid
-        && onlyChanged(['name', 'presence', 'position', 'color']));
-      allow delete: if isAdmin();
+      // 교수는 관리자 계정을 바꾸거나 누군가를 관리자로 지정할 수 없음
+      allow update: if isRoot() || (isAdmin() && resource.data.role != 'admin' && request.resource.data.role != 'admin')
+        || (signedIn() && request.auth.uid == uid && onlyChanged(['name', 'presence', 'position', 'color']));
+      allow delete: if isRoot() || (isAdmin() && resource.data.role == 'pending');
     }
 
     match /settings/{id} {
