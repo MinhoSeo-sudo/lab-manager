@@ -639,7 +639,7 @@
 const FIREBASE_CONFIG = { apiKey: "AIzaSyD21dnh8GrazqmNvQPXLrOCOLqs4j9o4tg", authDomain: "aml-mag.firebaseapp.com", projectId: "aml-mag", storageBucket: "aml-mag.firebasestorage.app", messagingSenderId: "1051520639327", appId: "1:1051520639327:web:df6b9f48250082c66e56ea", measurementId: "G-XY3QST8EHJ" };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '2.1';
+const APP_VERSION = '2.2';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -774,8 +774,7 @@ const MENUS = [
   { key:'fund',      label:'연구비 지급신청', group:'연구 관리' },
   { key:'deadlines', label:'마감·성과',     group:'연구 관리' },
   { key:'equipment', label:'장비·물품',     group:'연구 관리' },
-  { key:'admin',     label:'구성원·권한',   group:'관리', adminOnly:true },
-  { key:'backup',    label:'백업·복원',     group:'관리', adminOnly:true },
+  { key:'admin',     label:'관리자 설정',   group:'관리', adminOnly:true },
   { key:'guide',     label:'설정 가이드',   group:'도움말', fixed:true }
 ];
 const MENU_BY = Object.fromEntries(MENUS.map(m => [m.key, m]));
@@ -816,6 +815,12 @@ function canEdit(m){
   if(ME.role === 'viewer') return false;
   const p = perms()[m]; return !!p && p.edit.includes(ME.role) && p.view.includes(ME.role);
 }
+
+/* 삭제 잠금: 켜져 있으면(기본) 남이 만든 것은 관리자만 삭제. 본인이 만든 것은 편집 권한자가 삭제 가능 */
+const lockDel = () => !(S.app && S.app.lockDelete === false);
+const ownDoc = d => !!d && !!ME && (d.uid === ME.uid || d.createdUid === ME.uid);
+function canDel(menu, d){ return isAdmin() || (canEdit(menu) && (!lockDel() || ownDoc(d))); }
+const DEL_MSG = '삭제는 관리자만 할 수 있습니다 (본인이 만든 것은 가능)';
 
 /* ---------------- 데이터 저장소 ---------------- */
 const S = {
@@ -1089,7 +1094,7 @@ function personColor(name){
 function userName(uidv){ const u = S.users[uidv]; return u ? u.name : '(알 수 없음)'; }
 function namePicker(name, selected, extra){
   const names = Array.from(new Set(rosterNames().concat(extra || [])));
-  if(!names.length) return '<div class="hint">구성원·권한 메뉴에서 명단을 먼저 등록하세요.</div>';
+  if(!names.length) return '<div class="hint">관리자 설정 메뉴에서 명단을 먼저 등록하세요.</div>';
   return '<div class="name-picker">' + names.map(n =>
     '<label class="chip sel' + ((selected || []).includes(n) ? ' on' : '') + '"><input type="checkbox" data-multi name="' + name + '" value="' + esc(n) + '"' +
     ((selected || []).includes(n) ? ' checked' : '') + ' style="display:none">' + esc(n) + '</label>').join('') + '</div>';
@@ -1243,7 +1248,7 @@ function showPending(){
   teardownApp();
   const a = authCard(
     '<div class="alert warn" style="display:block;line-height:1.7"><b>관리자 승인 대기 중입니다.</b><br>' + esc(ME.name) + ' (' + esc(ME.email || '') + ') 님의 가입 신청이 접수되었습니다. ' +
-    '관리자가 <b>구성원·권한</b> 메뉴에서 승인하면 이 화면이 자동으로 바뀝니다.</div>' +
+    '관리자가 <b>관리자 설정</b> 메뉴에서 승인하면 이 화면이 자동으로 바뀝니다.</div>' +
     '<button class="btn full" id="pdOut">로그아웃</button>');
   $('#pdOut').onclick = () => AU.signOut();
 }
@@ -1343,7 +1348,7 @@ function applyBrand(){
 /* ---------------- 라우팅 · 렌더 ---------------- */
 const MOD = {};
 function go(r){ if(location.hash !== '#/' + r) location.hash = '#/' + r; else { setRouteFromHash(); render(); } }
-function setRouteFromHash(){ let r = location.hash.replace(/^#\/?/, '').split('/')[0] || 'dashboard'; if(r === 'planner'){ r = 'calendar'; try{ history.replaceState(null, '', '#/calendar'); }catch(e){} } ROUTE = MOD[r] ? r : 'dashboard'; }
+function setRouteFromHash(){ let r = location.hash.replace(/^#\/?/, '').split('/')[0] || 'dashboard'; if(r === 'planner'){ r = 'calendar'; try{ history.replaceState(null, '', '#/calendar'); }catch(e){} } if(r === 'backup'){ r = 'admin'; MOD.admin.tab = 'backup'; try{ history.replaceState(null, '', '#/admin'); }catch(e){} } ROUTE = MOD[r] ? r : 'dashboard'; }
 window.addEventListener('hashchange', () => { if(!APP_STARTED) return; setRouteFromHash(); render(); });
 function navBadge(k){
   if(k === 'notices') return vals(S.notices).filter(n => !(n.readBy || []).includes(ME.uid)).length;
@@ -1555,7 +1560,7 @@ const Notice = {
           $('#ncCount', el).textContent = list.length ? list.length + '개' : '';
           $('#ncList', el).innerHTML = list.length ? list.map(c => '<div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #eef0f5">' + avatar(c.authorName, personColor(c.authorName), 'sm') +
             '<div style="flex:1;min-width:0"><div class="small"><b>' + esc(c.authorName || '') + '</b> <span class="muted">' + fmtTs(c.createdAt) + '</span></div><div class="prewrap" style="font-size:13px;line-height:1.6;margin-top:2px">' + linkify(c.text || '') + '</div></div>' +
-            ((c.uid === ME.uid && canAct()) || canEdit('notices') ? '<button class="rowdel" data-ncdel="' + c.id + '" title="댓글 삭제">✕</button>' : '') + '</div>').join('') : '<div class="hint">아직 댓글이 없습니다.</div>';
+            ((c.uid === ME.uid && canAct()) || canDel('notices', c) ? '<button class="rowdel" data-ncdel="' + c.id + '" title="댓글 삭제">✕</button>' : '') + '</div>').join('') : '<div class="hint">아직 댓글이 없습니다.</div>';
         };
         const add = () => {
           const t = $('#ncText', el); const text = t.value.trim(); if(!text) return;
@@ -1569,7 +1574,7 @@ const Notice = {
         });
         draw(); el._nc = setInterval(() => { if(!el.isConnected){ clearInterval(el._nc); return; } if(document.activeElement !== $('#ncText', el)) draw(); }, 2500);
       },
-      buttons: [ canEdit('notices') ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 공지를 삭제할까요? (댓글도 함께 삭제됩니다)', onClick: () => dbBatch([{ op:'del', coll:'notices', id }].concat(Notice.comments(id).map(c => ({ op:'del', coll:'noticeComments', id: c.id })))) } : null,
+      buttons: [ canDel('notices', S.notices[id]) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 공지를 삭제할까요? (댓글도 함께 삭제됩니다)', onClick: () => dbBatch([{ op:'del', coll:'notices', id }].concat(Notice.comments(id).map(c => ({ op:'del', coll:'noticeComments', id: c.id })))) } : null,
                  canEdit('notices') ? { label:'수정', onClick: () => { setTimeout(() => Notice.edit(id), 0); } } : null,
                  { label:'닫기', cls:'primary' } ] });
   },
@@ -1780,7 +1785,7 @@ const Cal = {
         $('[name=start]', el).onchange = () => { const s = $('[name=start]', el), e = $('[name=end]', el); if(!e.value || e.value < s.value) e.value = s.value; };
         sync();
       },
-      buttons: [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 일정을 삭제할까요?' + (ev.repeat === 'weekly' ? ' (반복 일정 전체가 삭제됩니다)' : '') + (ev.gid ? ' 연동된 구글 캘린더 일정도 함께 삭제됩니다.' : ''), onClick: () => { if(ev.gid) GCal.queueDel(ev.gid); return dbDel('events', id); } } : null,
+      buttons: [ id && (ev.type !== 'lab' || canDel('calendar', ev)) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 일정을 삭제할까요?' + (ev.repeat === 'weekly' ? ' (반복 일정 전체가 삭제됩니다)' : '') + (ev.gid ? ' 연동된 구글 캘린더 일정도 함께 삭제됩니다.' : ''), onClick: () => { if(ev.gid) GCal.queueDel(ev.gid); return dbDel('events', id); } } : null,
         { label:'취소' },
         { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el);
@@ -2085,7 +2090,7 @@ MOD.timetable = {
     openModal({ title:'학기 관리', wide:true,
       body: (list.length ? '<h4 style="margin-top:0">등록된 학기</h4><div class="list">' + list.map(x => '<div class="li"><b>' + esc(x.name || x.id) + '</b><span class="muted small">' + esc(x.id) + '</span>' +
           ((S.app && S.app.semester) === x.id ? '<span class="chip accent">현재 학기</span>' : (isAdmin() ? '<button class="btn small" data-setcur="' + esc(x.id) + '">현재 학기로 지정</button>' : '')) +
-          '<span class="sp" style="flex:1"></span><button class="btn small ghost-danger" data-semdel="' + esc(x.id) + '">삭제</button></div>').join('') + '</div>' : '') +
+          '<span class="sp" style="flex:1"></span>' + (canDel('timetable', x) ? '<button class="btn small ghost-danger" data-semdel="' + esc(x.id) + '">삭제</button>' : '') + '</div>').join('') + '</div>' : '') +
         '<h4>새 학기 만들기</h4><div class="form">' + fld('학기 코드 (예: 2027-1)', '<input name="id" placeholder="2027-1">') + fld('이름', '<input name="name" placeholder="2027-1학기">') +
         fld('내용', '<select name="copy">' + (t ? opt('blocks', '현재 시간표의 교시·블록만 복사 (이름 칸 비움)') + opt('all', '현재 시간표 전체 복사') : '') + opt('blank', '빈 시간표', t ? 'blocks' : 'blank') + '</select>', true) + '</div>',
       onMount: (el, m) => el.addEventListener('click', async e => {
@@ -2132,13 +2137,13 @@ const Deadline = {
         fld('메모', '<textarea name="memo">' + esc(d.memo || '') + '</textarea>', true) + '</div>',
       onMount: (el) => { if(ro) $$('input,select,textarea', el).forEach(x => x.disabled = true); },
       buttons: ro ? [{ label:'닫기' }] : [
-        id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 마감 항목을 삭제할까요?', onClick: () => dbDel('deadlines', id) } : null,
+        id && canDel('deadlines', d) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 마감 항목을 삭제할까요?', onClick: () => dbDel('deadlines', id) } : null,
         id ? { label:'🏆 성과로 등록', left:true, onClick: () => { setTimeout(() => Ach.edit(null, { title: d.title, type: /특허/.test(d.kind) ? '특허' : /학회/.test(d.kind) ? '학회 발표' : /논문/.test(d.kind) ? '논문' : '기타', date: d.date, authors: (d.owners || []).join(', '), link: d.link || '' }), 0); } } : null,
         { label:'취소' },
         { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el);
           if(!f.title || !f.date){ toast('제목과 마감일을 입력하세요', true); return false; }
-          const data = Object.assign({}, id ? d : { createdAt: Date.now(), createdBy: ME.name }, f, { updatedAt: Date.now() });
+          const data = Object.assign({}, id ? d : { createdAt: Date.now(), createdBy: ME.name, createdUid: ME.uid }, f, { updatedAt: Date.now() });
           delete data.id; dbSet('deadlines', id || newId(), data);
         } } ] });
   }
@@ -2197,10 +2202,10 @@ const Equip = {
       body: '<div class="form">' + fld('장비 이름', '<input name="name" value="' + esc(q.name) + '">', true) + fld('위치', '<input name="location" value="' + esc(q.location) + '">') +
         fld('담당자', '<input name="manager" value="' + esc(q.manager) + '" list="rosterList">') + fld('상태', '<select name="status">' + Object.keys(EQ_STATUS).map(k => opt(k, EQ_STATUS[k][0], q.status)).join('') + '</select>') +
         fld('메모 (사용법·주의사항)', '<textarea name="note">' + esc(q.note || '') + '</textarea>', true) + '</div><datalist id="rosterList">' + rosterNames().map(n => '<option value="' + esc(n) + '">').join('') + '</datalist>',
-      buttons: [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'장비를 삭제할까요? (예약 기록은 남습니다)', onClick: () => { dbDel('equipment', id); if(Equip.sel === id) Equip.sel = null; } } : null,
+      buttons: [ id && canDel('equipment', q) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'장비를 삭제할까요? (예약 기록은 남습니다)', onClick: () => { dbDel('equipment', id); if(Equip.sel === id) Equip.sel = null; } } : null,
         { label:'취소' }, { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el); if(!f.name){ toast('장비 이름을 입력하세요', true); return false; }
-          const nid = id || newId(); dbSet('equipment', nid, Object.assign({}, f, { updatedAt: Date.now() })); Equip.sel = nid;
+          const nid = id || newId(); dbSet('equipment', nid, Object.assign({}, f, { updatedAt: Date.now(), createdUid: id ? (q.createdUid || '') : ME.uid })); Equip.sel = nid;
         } } ] });
   },
   reserve(rid, date){
@@ -2213,7 +2218,7 @@ const Equip = {
         fld('시작', '<input type="time" name="start" value="' + esc(r.start) + '">') + fld('끝', '<input type="time" name="end" value="' + esc(r.end) + '">') +
         fld('사용 목적', '<input name="purpose" value="' + esc(r.purpose || '') + '" placeholder="예: 시편 측정">', true) + '</div>' +
         (rid && !mine ? '<div class="hint" style="margin-top:8px">예약자: ' + esc(r.userName) + '</div>' : ''),
-      buttons: [ rid && (mine || canEdit('equipment')) ? { label:'예약 취소', cls:'ghost-danger', left:true, confirm:'이 예약을 취소할까요?', onClick: () => dbDel('reservations', rid) } : null,
+      buttons: [ rid && (mine || canDel('equipment', r)) ? { label:'예약 취소', cls:'ghost-danger', left:true, confirm:'이 예약을 취소할까요?', onClick: () => dbDel('reservations', rid) } : null,
         { label:'닫기' }, (mine || canEdit('equipment')) ? { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el);
           if(!f.equipId || !f.date || !f.start || !f.end){ toast('모든 칸을 입력하세요', true); return false; }
@@ -2231,11 +2236,11 @@ const Equip = {
         fld('현재 수량', '<input type="number" name="qty" value="' + esc(s.qty) + '">') + fld('단위', '<input name="unit" value="' + esc(s.unit || '개') + '">') +
         fld('최소 수량 (이하이면 경고)', '<input type="number" name="min" value="' + esc(s.min || 0) + '">') + fld('보관 위치', '<input name="location" value="' + esc(s.location || '') + '">') +
         fld('메모 (구매처 등)', '<input name="note" value="' + esc(s.note || '') + '">', true) + '</div>',
-      buttons: [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 품목을 삭제할까요?', onClick: () => dbDel('supplies', id) } : null,
+      buttons: [ id && canDel('equipment', s) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 품목을 삭제할까요?', onClick: () => dbDel('supplies', id) } : null,
         { label:'취소' }, { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el); if(!f.name){ toast('품목 이름을 입력하세요', true); return false; }
           f.qty = Number(f.qty) || 0; f.min = Number(f.min) || 0;
-          dbSet('supplies', id || newId(), Object.assign({}, f, { updatedAt: Date.now(), updatedBy: ME.name }));
+          dbSet('supplies', id || newId(), Object.assign({}, f, { updatedAt: Date.now(), updatedBy: ME.name, createdUid: id ? (s.createdUid || '') : ME.uid }));
         } } ] });
   },
   purchase(id, preset){
@@ -2484,8 +2489,21 @@ MOD.minutes = {
 const GROUPS = ['교수','대학원생','학부생','기타'];
 MOD.admin = {
   tab: 'members',
-  hdr(){ return '<div class="seg">' + [['members','계정 · 승인'],['roster','명단'],['perms','메뉴 권한'],['lab','연구실 정보']].map(([k, l]) => '<button data-tab="' + k + '" class="' + (this.tab === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>'; },
-  render(){ return this[this.tab](); },
+  hdr(){ return '<div class="seg">' + [['members','계정 · 승인'],['roster','명단'],['perms','메뉴 권한'],['system','잠금 · 연동'],['lab','연구실 정보'],['backup','백업 · 복원']].map(([k, l]) => '<button data-tab="' + k + '" class="' + (this.tab === k ? 'on' : '') + '">' + l + '</button>').join('') + '</div>'; },
+  render(){ return this.tab === 'backup' ? MOD.backup.render() : this[this.tab](); },
+  system(){
+    const a = S.app || {};
+    const sw = (k, on, title, desc) => '<label class="chk" style="align-items:flex-start;gap:10px;padding:6px 0"><input type="checkbox" data-sys="' + k + '"' + (on ? ' checked' : '') + ' style="margin-top:3px"><span><b>' + title + '</b><div class="small muted" style="line-height:1.6;margin-top:2px">' + desc + '</div></span></label>';
+    return '<div class="hint" style="margin-bottom:12px">이 화면은 관리자에게만 보이고, 여기 있는 설정은 서버 규칙으로도 관리자만 바꿀 수 있습니다.</div>' +
+      '<div class="card" style="max-width:760px"><h3>🔒 삭제 잠금</h3>' +
+        sw('lockDelete', lockDel(), '삭제는 관리자만 (본인이 만든 것은 본인도 가능)', '켜 두면 공지 · 연구실 일정 · 마감 · 성과 · 장비 · 소모품 · 링크 · 라이선스 · 시간표와 연구비 신청차수 · 내역을 <b>만든 사람과 관리자만</b> 지울 수 있습니다. 연구비 과제와 비목 카드, 시간표 학기는 관리자만 지울 수 있습니다. 추가 · 수정은 메뉴 권한대로 그대로 됩니다. 이 기능을 넣기 전에 만들어진 항목은 만든 사람 기록이 없어 관리자만 지울 수 있습니다.') +
+        '<div class="small muted" style="margin-top:6px">수정 자체를 막고 싶은 메뉴는 [메뉴 권한] 탭에서 그 역할을 "보기"로 바꾸세요.</div></div>' +
+      '<div class="card" style="max-width:760px"><h3>G 구글 캘린더 연동</h3><div class="small muted" style="line-height:1.7;margin-bottom:8px">클라이언트 ID를 한 번 넣어 두면 구성원이 각자 [연구실/개인 일정]에서 자기 구글 계정을 연결할 수 있습니다. 비밀값이 아니며, 구글 일정 내용은 각자 브라우저에서만 보입니다.</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="sysCid" style="flex:1;min-width:260px" value="' + esc(a.gcalClientId || '') + '" placeholder="1234567890-xxxx.apps.googleusercontent.com"><button class="btn primary" data-act="savecid">저장</button></div>' +
+        '<div class="small muted" style="line-height:1.6;margin-top:8px">구글 클라우드 콘솔 → ① Google Calendar API 사용 설정 ② Google 인증 플랫폼 → 데이터 액세스에 <code>calendar.events</code> 추가 ③ 클라이언트 → 승인된 JavaScript 원본에 <code>' + esc(location.origin) + '</code> 추가 → 클라이언트 ID 복사</div></div>' +
+      '<div class="card" style="max-width:760px"><h3>📁 연구비 증빙 파일</h3>' +
+        sw('fundServerCopy', !!a.fundServerCopy, '증빙 파일을 서버에도 보관', '기본은 꺼짐 — 증빙은 연결한 공유폴더에만 저장합니다. 켜면 공유폴더가 없는 컴퓨터에서도 첨부를 열 수 있지만 Firebase 저장 용량을 씁니다.') + '</div>';
+  },
   members(){
     const us = vals(S.users);
     const pend = us.filter(u => u.role === 'pending').sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -2559,6 +2577,7 @@ MOD.admin = {
   saveRoster(r){ S.app = Object.assign({}, S.app, { roster: r }); return dbSet('settings', 'app', { roster: r }, true); },
   onclick(e){
     const tb = e.target.closest('[data-tab]'); if(tb){ this.tab = tb.dataset.tab; return render(); }
+    if(this.tab === 'backup') return MOD.backup.onclick(e);
     const ap = e.target.closest('[data-approve]');
     if(ap){
       const id = ap.dataset.approve; const role = $('[data-aprole="' + id + '"]').value; const u = S.users[id];
@@ -2592,6 +2611,7 @@ MOD.admin = {
         dbSet('settings', 'app', { perms: np }, true).then(() => toast('권한을 저장했습니다')); S.app = Object.assign({}, S.app, { perms: np }); return;
       }
       if(act === 'resetperm'){ S.app = Object.assign({}, S.app, { perms: clone(DEFAULT_PERMS) }); dbSet('settings', 'app', { perms: clone(DEFAULT_PERMS) }, true); return render(); }
+      if(act === 'savecid'){ const v = $('#sysCid').value.trim(); if(v && !/\.apps\.googleusercontent\.com$/.test(v)){ toast('클라이언트 ID 형식이 아닙니다 (…apps.googleusercontent.com)', true); return; } S.app = Object.assign({}, S.app, { gcalClientId: v }); dbSet('settings', 'app', { gcalClientId: v }, true).then(() => toast('저장했습니다')); return; }
       if(act === 'savelab'){ const labName = $('#labName').value.trim() || '연구실'; const semester = $('#labSem').value; dbSet('settings', 'app', { labName, semester }, true).then(() => toast('저장했습니다')); return; }
       if(act === 'wipedemo'){ confirmBox('체험 모드의 모든 데이터를 지울까요?', '모두 지우기', true).then(ok => { if(ok){ BE.wipe(); AU.signOut(); location.reload(); } }); return; }
     }
@@ -2601,6 +2621,8 @@ MOD.admin = {
   },
   onchange(e){
     const t = e.target;
+    if(this.tab === 'backup') return MOD.backup.onchange && MOD.backup.onchange(e);
+    if(t.dataset.sys){ const k = t.dataset.sys, v = t.checked; S.app = Object.assign({}, S.app, { [k]: v }); dbSet('settings', 'app', { [k]: v }, true).then(() => toast(k === 'lockDelete' ? (v ? '삭제 잠금을 켰습니다' : '삭제 잠금을 껐습니다 — 편집 권한자는 모두 삭제할 수 있습니다') : '저장했습니다')); return; }
     if(t.dataset.uf){
       const v = t.value.trim(); if(t.dataset.uf === 'name' && !v) return;
       if(t.dataset.uf === 'role' && t.dataset.uid === ME.uid) return;
@@ -2748,14 +2770,14 @@ const Backup = {
       const db = await this.idb();
       await new Promise((res, rej) => { const tx = db.transaction('snap', 'readwrite'); const st = tx.objectStore('snap'); st.put(json, key);
         list.filter(x => x.key !== key).slice(13).forEach(x => st.delete(x.key)); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
-      if(ROUTE === 'backup') render();
+      if(ROUTE === 'admin' && MOD.admin.tab === 'backup') render();
     }catch(e){ console.warn('snapshot failed', e); }
   }
 };
 MOD.backup = {
   snaps: null,
   render(){
-    if(this.snaps === null){ Backup.snapList().then(l => { this.snaps = l; if(ROUTE === 'backup') render(); }); }
+    if(this.snaps === null){ Backup.snapList().then(l => { this.snaps = l; if(ROUTE === 'admin' && MOD.admin.tab === 'backup') render(); }); }
     const a = S.app || {};
     const sm = Backup.summary(Backup.build());
     let h = '<div class="grid2"><div class="card"><h3>💾 전체 백업 받기</h3><div class="small" style="line-height:1.8;margin-bottom:12px">모든 메뉴의 데이터를 JSON 파일 하나로 내려받습니다. <b>일주일에 한 번</b> 받아서 구글 드라이브·연구실 NAS 등 다른 곳에 보관하세요.<br>' +
@@ -2877,13 +2899,18 @@ const Fund = (() => {
     setTimeout(() => { if(btn.isConnected){ btn.dataset.armed = ''; btn.textContent = orig; btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; } }, 3000);
     return false;
   }
+  /* 삭제 잠금 — 내역: 내가 만들었거나 내 이름(사용자·작성자)인 것, 또는 빈 줄 / 차수: 내가 만든 것 / 과제·비목 카드: 관리자 */
+  const entryBlank = e => !e.desc && !(Number(e.amount) || 0) && !(e.files && e.files.length);
+  const canDelEntry = e => isAdmin() || (canEdit('fund') && (!lockDel() || entryBlank(e) || e.createdUid === ME.uid || (!!ME.name && (e.writer === ME.name || e.user === ME.name))));
+  const canDelBatch = b => isAdmin() || (canEdit('fund') && (!lockDel() || b.createdUid === ME.uid));
+  const canDelCfg = () => isAdmin() || (canEdit('fund') && !lockDel());
   function newEntry(){
-    return { id:uid(), form:'', item:'', date:'', amount:0, desc:'', user:'', writer: ME ? ME.name : '', written:false, evSales:false, evTrade:false, evPhoto:false, evEtc:'', files:[] };
+    return { id:uid(), form:'', item:'', date:'', amount:0, desc:'', user:'', writer: ME ? ME.name : '', createdUid: ME ? ME.uid : '', written:false, evSales:false, evTrade:false, evPhoto:false, evEtc:'', files:[] };
   }
   function newBatch(projectId, kind){
     const n = state.batches.filter(b => b.projectId === projectId && b.kind === kind).length + 1;
     return { id:uid(), projectId, kind, name: (kind === 'rnd' ? 'RND카드 ' : '계좌이체 ') + n + '차', month: currentMonth(), reqNo:'',
-             ready:false, applied:false, rejected:false, rejectReason:'', entries:[ newEntry() ] };
+             ready:false, applied:false, rejected:false, rejectReason:'', createdUid: ME ? ME.uid : '', entries:[ newEntry() ] };
   }
   const visibleBatches = list => ui.monthFilter === 'all' ? list : list.filter(b => b.month === ui.monthFilter);
   const allMonths = () => Array.from(new Set(state.batches.map(b => b.month).filter(Boolean))).sort().reverse();
@@ -2906,7 +2933,7 @@ const Fund = (() => {
     const noEv = (b.entries || []).filter(e => (e.desc || e.amount) && !(e.files && e.files.length)).length;
     if(noEv) h += '<span class="badge" style="background:#fff1dc;color:#b45309" title="첨부파일이 없는 내역">증빙없음 ' + noEv + '</span>';
     h += '<button class="btn small" data-act="submit" title="학교 시스템에 옮겨 적기 쉽게 보여줍니다">📋 신청용</button>';
-    h += '<button class="btn small ghost-danger" data-act="delBatch" data-ro-hide>차수 삭제</button>';
+    if(canDelBatch(b)) h += '<button class="btn small ghost-danger" data-act="delBatch" data-ro-hide>차수 삭제</button>';
     h += '</div>';
     if(b.rejected) h += '<div class="reject-row">⚠️ 반려사유 <input class="rreason" data-f="rejectReason" value="' + esc(b.rejectReason) + '" placeholder="반려 사유를 입력하세요"></div>';
     if(!collapsed){
@@ -2933,7 +2960,7 @@ const Fund = (() => {
              '<label><input type="checkbox" data-ef="evPhoto"' + (e.evPhoto ? ' checked' : '') + '>검수사진</label>' +
              '<span class="etc-wrap">기타 <input class="evetc" data-ef="evEtc" value="' + esc(e.evEtc) + '" placeholder="기타 증빙"></span></div></td>';
         h += '<td style="text-align:center"><button class="attach-btn' + (e.files && e.files.length ? ' has' : '') + '" data-act="attach" title="첨부파일">📎' + (e.files && e.files.length ? e.files.length : '') + '</button></td>';
-        h += '<td style="text-align:center"><button class="rowdel" data-act="delEntry" title="내역 삭제" data-ro-hide>✕</button></td>';
+        h += '<td style="text-align:center">' + (canDelEntry(e) ? '<button class="rowdel" data-act="delEntry" title="내역 삭제" data-ro-hide>✕</button>' : '<span class="muted" title="' + DEL_MSG + '">🔒</span>') + '</td>';
         h += '</tr>';
       });
       h += '</tbody><tfoot><tr><td colspan="4" style="text-align:right;padding-right:8px">합계</td><td class="num" style="padding-right:8px">' + fmt(sum) + '</td><td colspan="7"></td></tr></tfoot></table>';
@@ -2945,7 +2972,7 @@ const Fund = (() => {
     const tab = ui.projTab[p.id] || 'rnd';
     let h = '<div class="card"><div class="proj-title-row"><input class="code" data-pf="code" value="' + esc(p.code) + '" style="width:190px;font-size:11.5px" title="과제 번호">' +
       '<input class="pname" data-pf="name" value="' + esc(p.name) + '" title="과제명 (클릭하여 수정)">' +
-      '<button class="btn small ghost-danger" data-act="delProject" data-ro-hide>과제 삭제</button></div>';
+      (canDelCfg() ? '<button class="btn small ghost-danger" data-act="delProject" data-ro-hide>과제 삭제</button>' : '') + '</div>';
     h += '<div class="proj-info">' +
       '<div><label>메뉴 이름</label><input data-pf="short" value="' + esc(p.short) + '"></div>' +
       '<div><label>지원기관</label><input data-pf="org" value="' + esc(p.org) + '"></div>' +
@@ -2977,7 +3004,7 @@ const Fund = (() => {
       h += '<div class="bstat ' + cls + (unset ? ' unset' : '') + '"><div class="bl">' + esc(it) + '</div>' +
         '<div class="bv">' + (unset ? '<span class="bnone">예산 미설정</span>' : fmt(remain) + '<span class="bu">원</span>') + '</div>' +
         '<div class="bd">예산 <input class="bud-input" data-bud="' + esc(it) + '" value="' + fmt(budget) + '"> · 사용 ' + fmt(spent) + '원' +
-        (has ? ' <button class="bud-del" data-act="delBudItem" data-item="' + esc(it) + '" title="이 비목 카드 삭제" data-ro-hide>✕</button>' : '') + '</div></div>';
+        (has && canDelCfg() ? ' <button class="bud-del" data-act="delBudItem" data-item="' + esc(it) + '" title="이 비목 카드 삭제" data-ro-hide>✕</button>' : '') + '</div></div>';
     }
     h += '<div class="bstat badd" data-ro-hide><div class="bl">비목 추가</div><div class="badd-row"><input class="badd-input" placeholder="예: 국내여비" data-additem><button class="btn small" data-act="addBudItem">추가</button></div></div>';
     return h + '</div>';
@@ -3070,8 +3097,8 @@ const Fund = (() => {
     '<h3>3. 신청차수</h3><ul><li><b>월</b>을 지정하면 상단 <b>월별 보기</b>로 모아 볼 수 있습니다.</li><li><b>신청가능</b> — 준비 완료 표시. <b>신청(교수님)</b> — 교수님 신청 완료 표시. <b>반려</b> — 체크하면 반려사유 칸이 나타납니다.</li></ul>' +
     '<h3>4. 저장 · 공유</h3><ul><li>입력칸에서 포커스가 빠지면 <b>자동으로 서버에 저장</b>되고, 다른 구성원 화면에도 바로 반영됩니다.</li>' +
     '<li>차수 단위로 저장되므로 여러 명이 <b>서로 다른 차수</b>를 동시에 편집해도 안전합니다. 같은 차수를 동시에 고치면 나중 저장이 반영됩니다.</li>' +
-    '<li>권한: 기본값은 관리자·대학원생 편집, 나머지는 열람만 가능 (관리자가 <b>구성원·권한 → 메뉴 권한</b>에서 변경).</li>' +
-    '<li>백업은 왼쪽 메뉴 <b>백업·복원</b>에서 전체 데이터와 함께 받습니다. 기존 프로그램의 백업 JSON도 거기서 가져올 수 있습니다.</li></ul>' +
+    '<li>권한: 기본값은 관리자·대학원생 편집, 나머지는 열람만 가능 (관리자가 <b>관리자 설정 → 메뉴 권한</b>에서 변경).</li>' +
+    '<li>백업은 <b>관리자 설정 → 백업·복원</b>에서 전체 데이터와 함께 받습니다. 기존 프로그램의 백업 JSON도 거기서 가져올 수 있습니다.</li></ul>' +
     '<h3>5. 증빙 등록과 공유폴더</h3><ul><li><b>＋ 증빙 등록</b>(오른쪽 위) — 과제·구분·차수·비목·날짜·금액·내역을 적고 파일을 끌어다 놓으면 <b>내역 한 줄이 만들어지고 파일이 공유폴더에 자동 저장</b>됩니다. 화면 아무 곳에나 파일을 끌어다 놓아도 이 창이 열립니다. 직전에 고른 과제·차수·비목은 기억됩니다.</li>' +
     '<li>저장 위치: <code>연구비_첨부 / 과제 / RND카드·계좌이체 / 신청차수 / 비목 / 날짜_내역_금액 / 종류_내역.pdf</code> (내역마다 폴더 하나). 내역의 날짜·금액·비목이나 차수 이름을 고치면 파일도 따라 옮겨집니다.</li>' +
     '<li><b>📁 증빙 폴더</b> — PC마다 한 번, 연구실 NAS의 같은 폴더를 연결합니다. 모두 같은 폴더를 보므로 누가 올린 파일이든 바로 열립니다.</li>' +
@@ -3158,6 +3185,7 @@ const Fund = (() => {
         b.applied = !b.applied; persist(); render(); return;
       }
       if(act === 'delProject'){
+        if(!canDelCfg()){ toast(DEL_MSG, true); return; }
         const p = state.projects.find(x => x.id === ui.view); if(!p) return;
         const n = state.batches.filter(b => b.projectId === p.id).length;
         confirmBox('과제 <b>' + esc(p.short || p.name) + '</b>을(를) 삭제할까요?' + (n ? '<br>이 과제의 신청차수 <b>' + n + '개</b>도 함께 삭제됩니다.' : ''), '삭제', true).then(ok => {
@@ -3168,7 +3196,7 @@ const Fund = (() => {
       if(act === 'addBudItem' || act === 'delBudItem'){
         const p = state.projects.find(x => x.id === ui.view); if(!p) return;
         if(!p.budgets) p.budgets = {};
-        if(act === 'delBudItem') delete p.budgets[actBtn.dataset.item];
+        if(act === 'delBudItem'){ if(!canDelCfg()){ toast(DEL_MSG, true); return; } delete p.budgets[actBtn.dataset.item]; }
         else{ const box = actBtn.closest('.badd').querySelector('[data-additem]'); const name = (box.value || '').trim(); if(!name){ box.focus(); return; } if(!Object.prototype.hasOwnProperty.call(p.budgets, name)) p.budgets[name] = 0; }
         persist(); render(); return;
       }
@@ -3181,6 +3209,7 @@ const Fund = (() => {
       const b = state.batches.find(x => x.id === batchEl.dataset.bid); if(!b) return;
       if(act === 'toggle'){ ui.collapsed[b.id] = !ui.collapsed[b.id]; render(); }
       else if(act === 'delBatch'){
+        if(!canDelBatch(b)){ toast(DEL_MSG, true); return; }
         if(!armDelete(actBtn, '정말 삭제?')) return;
         const parts = attachDirParts(b); const metas = (b.entries || []).flatMap(e => e.files || []);
         state.batches = state.batches.filter(x => x.id !== b.id);
@@ -3189,6 +3218,7 @@ const Fund = (() => {
       else if(act === 'addEntry'){ b.entries = b.entries || []; b.entries.push(newEntry()); persist(); render(); }
       else if(act === 'delEntry'){
         const tr = actBtn.closest('tr[data-eid]'); if(!tr) return;
+        { const e0 = b.entries.find(e => e.id === tr.dataset.eid); if(e0 && !canDelEntry(e0)){ toast(DEL_MSG, true); return; } }
         if(!armDelete(actBtn, '✓')) return;
         const ent = b.entries.find(e => e.id === tr.dataset.eid);
         const metas = ent ? (ent.files || []) : []; const cands = metas.map(m => candidateRels(b, ent, m));
@@ -4020,6 +4050,13 @@ service cloud.firestore {
     }
     function onlyChanged(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     function mine() { return request.resource.data.uid == request.auth.uid; }
+    // 삭제 잠금(관리자 설정): 켜져 있으면 남이 만든 문서는 관리자만 삭제
+    function lockDel() {
+      return exists(/databases/$(database)/documents/settings/app)
+        ? get(/databases/$(database)/documents/settings/app).data.get('lockDelete', true) : true;
+    }
+    function ownDoc() { return resource.data.get('uid', '') == request.auth.uid || resource.data.get('createdUid', '') == request.auth.uid; }
+    function canDel(m) { return isAdmin() || (canEdit(m) && (!lockDel() || ownDoc())); }
 
     // 첫 가입자를 관리자로 지정하기 위한 표시 (한 번만 생성됨)
     match /meta/bootstrap {
@@ -4046,7 +4083,8 @@ service cloud.firestore {
     }
     match /notices/{id} {
       allow read: if canView('notices');
-      allow create, delete: if canEdit('notices');
+      allow create: if canEdit('notices');
+      allow delete: if canDel('notices');
       allow update: if canEdit('notices') || (canView('notices') && onlyChanged(['readBy']));
     }
     // 공지 댓글: 누구나 작성, 본인 댓글만 수정·삭제 (공지 편집 권한자는 모두 삭제 가능)
@@ -4054,26 +4092,27 @@ service cloud.firestore {
       allow read: if canView('notices');
       allow create: if canAct() && canView('notices') && mine();
       allow update: if canAct() && resource.data.uid == request.auth.uid && mine();
-      allow delete: if canEdit('notices') || (canAct() && resource.data.uid == request.auth.uid);
+      allow delete: if canDel('notices') || (canAct() && resource.data.uid == request.auth.uid)
+        || (canEdit('notices') && !existsAfter(/databases/$(database)/documents/notices/$(resource.data.noticeId)));
     }
-    match /timetables/{id} { allow read: if canView('timetable'); allow write: if canEdit('timetable'); }
-    match /deadlines/{id}  { allow read: if canView('deadlines'); allow write: if canEdit('deadlines'); }
+    match /timetables/{id} { allow read: if canView('timetable'); allow create, update: if canEdit('timetable'); allow delete: if canDel('timetable'); }
+    match /deadlines/{id}  { allow read: if canView('deadlines'); allow create, update: if canEdit('deadlines'); allow delete: if canDel('deadlines'); }
     match /minutes/{id}    { allow read: if canView('minutes');   allow write: if canEdit('minutes'); }
-    match /fundProjects/{id} { allow read: if canView('fund'); allow write: if canEdit('fund'); }
-    match /fundBatches/{id}  { allow read: if canView('fund'); allow write: if canEdit('fund'); }
+    match /fundProjects/{id} { allow read: if canView('fund'); allow create, update: if canEdit('fund'); allow delete: if canDel('fund'); }
+    match /fundBatches/{id}  { allow read: if canView('fund'); allow create, update: if canEdit('fund'); allow delete: if canDel('fund'); }
     match /fundFiles/{id} {
       allow read: if canView('fund'); allow write: if canEdit('fund');
       match /c/{n} { allow read: if canView('fund'); allow write: if canEdit('fund'); }
     }
-    match /equipment/{id} { allow read: if canView('equipment'); allow write: if canEdit('equipment'); }
-    match /supplies/{id}  { allow read: if canView('equipment'); allow write: if canEdit('equipment'); }
+    match /equipment/{id} { allow read: if canView('equipment'); allow create, update: if canEdit('equipment'); allow delete: if canDel('equipment'); }
+    match /supplies/{id}  { allow read: if canView('equipment'); allow create, update: if canEdit('equipment'); allow delete: if canDel('equipment'); }
 
     // 장비 예약: 누구나 본인 예약 생성·취소, 장비 관리자는 전체
     match /reservations/{id} {
       allow read: if canView('equipment');
       allow create: if canEdit('equipment') || (canAct() && canView('equipment') && mine());
       allow update: if canEdit('equipment') || (canAct() && resource.data.uid == request.auth.uid && mine());
-      allow delete: if canEdit('equipment') || (canAct() && resource.data.uid == request.auth.uid);
+      allow delete: if canDel('equipment') || (canAct() && resource.data.uid == request.auth.uid);
     }
     // 구매 요청: 누구나 요청, 상태 변경은 장비 관리자만
     match /purchases/{id} {
@@ -4081,16 +4120,16 @@ service cloud.firestore {
       allow create: if canEdit('equipment') || (canAct() && canView('equipment') && mine() && request.resource.data.status == '요청');
       allow update: if canEdit('equipment') || (canAct() && resource.data.uid == request.auth.uid
         && resource.data.status == '요청' && request.resource.data.status == '요청' && mine());
-      allow delete: if canEdit('equipment') || (canAct() && resource.data.uid == request.auth.uid && resource.data.status == '요청');
+      allow delete: if canDel('equipment') || (canAct() && resource.data.uid == request.auth.uid && resource.data.status == '요청');
     }
-    match /achievements/{id} { allow read: if canView('deadlines'); allow write: if canEdit('deadlines'); }
+    match /achievements/{id} { allow read: if canView('deadlines'); allow create, update: if canEdit('deadlines'); allow delete: if canDel('deadlines'); }
     // 연락처·링크: 본인 연락처(c_본인uid)는 누구나, 나머지는 편집 권한자 (권한 설정 전 기본값: 관리자·대학원생)
     match /directory/{id} {
       function dirEdit() { return canEdit('contacts') || (canView('contacts') && !('contacts' in perms()) && role() in ['admin', 'grad']); }
       allow read: if canView('contacts');
       allow create, update: if dirEdit() || (canAct() && canView('contacts') && id == 'c_' + request.auth.uid
         && request.resource.data.kind == 'contact' && mine());
-      allow delete: if dirEdit() || (canAct() && id == 'c_' + request.auth.uid);
+      allow delete: if (dirEdit() && (isAdmin() || !lockDel() || ownDoc())) || (canAct() && id == 'c_' + request.auth.uid);
     }
     // 건의사항: 누구나 작성·공감, 답변과 상태 변경은 편집 권한자
     match /suggestions/{id} {
@@ -4099,7 +4138,7 @@ service cloud.firestore {
       allow update: if canEdit('suggest') || (canView('suggest') && onlyChanged(['likes']))
         || (canAct() && resource.data.get('uid', '') == request.auth.uid && resource.data.status == '접수'
           && request.resource.data.status == '접수' && mine());
-      allow delete: if canEdit('suggest') || (canAct() && resource.data.get('uid', '') == request.auth.uid && resource.data.status == '접수');
+      allow delete: if canDel('suggest') || (canAct() && resource.data.get('uid', '') == request.auth.uid && resource.data.status == '접수');
     }
     // 내 플래너: 본인만 읽고 쓸 수 있음 (관리자도 다른 사람 것은 볼 수 없음)
     match /planner/{id} {
@@ -4118,7 +4157,7 @@ service cloud.firestore {
           && request.resource.data.type == 'lab' && request.resource.data.visibility == 'shared')
         || (resource.data.type == 'personal' && canAct() && resource.data.uid == request.auth.uid
           && mine() && request.resource.data.type == 'personal');
-      allow delete: if (resource.data.type == 'lab' && canEdit('calendar'))
+      allow delete: if (resource.data.type == 'lab' && canDel('calendar'))
         || (canAct() && resource.data.uid == request.auth.uid)
         || (isAdmin() && resource.data.visibility == 'shared');
     }
@@ -4177,21 +4216,21 @@ const Guide = {
 
     '<h3>7단계 · 첫 로그인 (관리자 지정)</h3><ol>' +
     '<li>배포한 주소로 접속 → <b>가입 신청</b> (실명 입력). <b>가장 먼저 가입한 사람이 자동으로 관리자</b>가 됩니다 — 대표자가 먼저 가입하세요.</li>' +
-    '<li><b>백업·복원 → 파일 선택</b>에서 함께 받은 <code>연구실_초기데이터.json</code>을 불러오면 명단·2026-2학기 시간표·연구비 데이터가 채워집니다.</li>' +
-    '<li>기존 연구비 프로그램에 최신 데이터가 있다면: 기존 프로그램의 <b>[백업/복원] → 파일로 저장</b> → 이 프로그램의 <b>백업·복원 → 파일 선택</b>으로 불러오기 (자동으로 인식해서 연구비만 교체).</li>' +
-    '<li><b>구성원·권한 → 연구실 정보</b>에서 연구실 이름을 정합니다.</li></ol>' +
+    '<li><b>관리자 설정 → 백업·복원 → 파일 선택</b>에서 함께 받은 <code>연구실_초기데이터.json</code>을 불러오면 명단·2026-2학기 시간표·연구비 데이터가 채워집니다.</li>' +
+    '<li>기존 연구비 프로그램에 최신 데이터가 있다면: 기존 프로그램의 <b>[백업/복원] → 파일로 저장</b> → 이 프로그램의 <b>관리자 설정 → 백업·복원 → 파일 선택</b>으로 불러오기 (자동으로 인식해서 연구비만 교체).</li>' +
+    '<li><b>관리자 설정 → 연구실 정보</b>에서 연구실 이름을 정합니다.</li></ol>' +
 
     '<h3>8단계 · 구성원 초대</h3><ol>' +
     '<li>연구실 단톡방 등에 주소를 공유하고, 각자 <b>가입 신청</b>(실명) 하도록 안내합니다.</li>' +
-    '<li>관리자 화면 <b>구성원·권한 → 계정·승인</b>에서 역할(대학원생/학부연구생/열람전용)을 고르고 <b>승인</b>. 승인 즉시 상대 화면이 열립니다.</li>' +
+    '<li>관리자 화면 <b>관리자 설정 → 계정·승인</b>에서 역할(대학원생/학부연구생/열람전용)을 고르고 <b>승인</b>. 승인 즉시 상대 화면이 열립니다.</li>' +
     '<li>메뉴별로 누가 보고/편집할지는 <b>메뉴 권한</b> 탭에서 바꿉니다. (기본: 연구비는 전원 열람·관리자/대학원생 편집)</li>' +
     '<li>교수님 계정은 관리자 역할로 승인하는 것을 권장합니다.</li></ol>' +
 
     '<h3>백업 · 복구 체계</h3><ul>' +
     '<li><b>1차 — 서버(Firestore)</b>: 모든 입력은 즉시 Google 클라우드에 저장되어 어느 컴퓨터·휴대폰에서 로그인해도 같은 데이터가 보입니다. 인터넷이 끊겨도 마지막 화면은 보이고 수정도 되며, 다시 연결되면 자동으로 올라갑니다.</li>' +
-    '<li><b>2차 — 전체 백업 파일</b>: 관리자가 <b>백업·복원 → 전체 백업 받기</b>로 JSON 파일을 받습니다. <b>주 1회</b> 권장 (7일이 지나면 홈 화면에 알림). 받은 파일은 구글 드라이브·NAS 등 <b>다른 곳에</b> 보관하세요. 첨부파일까지 받으려면 [첨부파일 포함해서 받기].</li>' +
+    '<li><b>2차 — 전체 백업 파일</b>: 관리자가 <b>관리자 설정 → 백업·복원 → 전체 백업 받기</b>로 JSON 파일을 받습니다. <b>주 1회</b> 권장 (7일이 지나면 홈 화면에 알림). 받은 파일은 구글 드라이브·NAS 등 <b>다른 곳에</b> 보관하세요. 첨부파일까지 받으려면 [첨부파일 포함해서 받기].</li>' +
     '<li><b>3차 — 자동 스냅샷</b>: 관리자가 접속하면 하루 한 번 그 브라우저에 자동 저장 (최근 14일). 실수로 지웠을 때 그 시점으로 되돌릴 수 있습니다.</li>' +
-    '<li><b>복원</b>: 백업·복원 → 파일 선택 → 복원할 항목과 방식(병합/교체) 선택.</li>' +
+    '<li><b>복원</b>: 관리자 설정 → 백업·복원 → 파일 선택 → 복원할 항목과 방식(병합/교체) 선택.</li>' +
     '<li><b>(선택, 고급) 서버 자동 백업</b>: Firebase를 Blaze(종량제) 요금제로 바꾸면 Google Cloud에서 매일 자동 백업을 설정할 수 있습니다: <code>gcloud firestore backups schedules create --database="(default)" --recurrence=daily --retention=14d</code> (소규모면 월 수백 원 수준).</li></ul>' +
 
     '<h3>프로그램 업데이트할 때</h3><ol><li>새 버전 HTML을 받으면 4단계처럼 <code>FIREBASE_CONFIG</code>만 다시 붙여넣고, 같은 곳(GitHub의 index.html)에 덮어써서 올립니다.</li>' +
@@ -4200,7 +4239,7 @@ const Guide = {
     '<h3>자주 묻는 문제</h3><ul>' +
     '<li><b>"계정 정보를 읽지 못했습니다"</b> → 5단계 규칙 게시 여부, Firestore 데이터베이스 생성 여부 확인.</li>' +
     '<li><b>Google 로그인 창이 바로 닫힘 / unauthorized-domain</b> → 6단계 승인된 도메인 추가.</li>' +
-    '<li><b>가입했는데 승인 대기에서 안 넘어감</b> → 관리자가 구성원·권한에서 승인해야 합니다.</li>' +
+    '<li><b>가입했는데 승인 대기에서 안 넘어감</b> → 관리자가 관리자 설정에서 승인해야 합니다.</li>' +
     '<li><b>관리자가 실수로 접근 해제됨</b> → Firebase 콘솔 → Firestore → <code>users</code> 컬렉션 → 해당 문서의 <code>role</code> 값을 <code>admin</code>으로 직접 수정.</li>' +
     '<li><b>비밀번호 분실</b> → 로그인 화면의 [비밀번호 재설정 메일].</li>' +
     '<li><b>무료 한도</b> → 저장 1GB, 하루 읽기 5만·쓰기 2만 회. 연구실 20명 규모의 일상 사용은 한도의 일부입니다. 첨부파일은 파일당 8MB까지 서버에 올라가며, 용량이 큰 파일은 각자의 첨부 폴더에 보관됩니다.</li></ul>' +
@@ -4260,7 +4299,7 @@ const Suggest = {
         (x.reply && !ed ? '<div class="card" style="box-shadow:none;background:#fafbfe;margin-top:16px"><b class="small">답변</b> <span class="muted small">' + esc(x.replyBy || '') + ' · ' + fmtTs(x.replyAt) + '</span><div class="prewrap" style="margin-top:6px">' + linkify(x.reply) + '</div></div>' : '') +
         (ed ? '<h4>답변 · 처리 상태</h4><div class="form">' + fld('상태', '<select name="status">' + SG_STATUS.map(c => opt(c, c, x.status)).join('') + '</select>') + '<div></div>' +
           fld('답변 (모두에게 보임)', '<textarea name="reply" style="min-height:110px">' + esc(x.reply || '') + '</textarea>', true) + '</div>' : ''),
-      buttons: [ (ed || mine) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 건의를 삭제할까요?', onClick: () => dbDel('suggestions', id) } : null,
+      buttons: [ (canDel('suggest', x) || mine) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 건의를 삭제할까요?', onClick: () => dbDel('suggestions', id) } : null,
         mine ? { label:'수정', onClick: () => { setTimeout(() => Suggest.edit(id), 0); } } : null,
         { label:'닫기' },
         ed ? { label:'답변 저장', cls:'primary', onClick: (m) => { const f = readForm(m.el); const p = { status: f.status, reply: f.reply }; if(f.reply !== (x.reply || '')){ p.replyBy = ME.name; p.replyAt = Date.now(); } dbUpdate('suggestions', id, p); } } : null ] });
@@ -4342,10 +4381,10 @@ const Ach = {
         fld('관련 과제 (선택)', '<select name="projectId"><option value="">없음</option>' + projs.map(p => opt(p.id, p.short || p.name, x.projectId)).join('') + '</select>') +
         fld('링크 (DOI 등)', '<input name="link" value="' + esc(x.link || '') + '">', true) + fld('메모', '<textarea name="memo">' + esc(x.memo || '') + '</textarea>', true) + '</div>',
       onMount: (el) => { if(ro) $$('input,select,textarea', el).forEach(i => i.disabled = true); },
-      buttons: ro ? [{ label:'닫기' }] : [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 성과를 삭제할까요?', onClick: () => dbDel('achievements', id) } : null,
+      buttons: ro ? [{ label:'닫기' }] : [ id && canDel('deadlines', x) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 성과를 삭제할까요?', onClick: () => dbDel('achievements', id) } : null,
         { label:'취소' }, { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el); if(!f.title){ toast('제목을 입력하세요', true); return false; }
-          const data = Object.assign({}, id ? x : { createdAt: Date.now(), createdBy: ME.name }, f, { updatedAt: Date.now() }); delete data.id;
+          const data = Object.assign({}, id ? x : { createdAt: Date.now(), createdBy: ME.name, createdUid: ME.uid }, f, { updatedAt: Date.now() }); delete data.id;
           dbSet('achievements', id || newId(), data); if(!id){ MOD.deadlines.tab = 'ach'; setTimeout(render, 80); }
         } } ] });
   },
@@ -4768,13 +4807,12 @@ const GCal = {
         (cid ? '<div style="margin:14px 0 6px"><b>상태</b>: ' + (on ? '연결됨' + (this.last && this.uid === ME.uid ? ' · 마지막 동기화 ' + new Date(this.last).toTimeString().slice(0, 5) : ' · 이번 접속에서는 아직 동기화 전') + ' · 연동된 개인 일정 ' + linkedN + '건' : '연결 안 됨') + '</div>' +
               '<label class="chk"><input type="checkbox" id="gcPush"' + (this.pushOn() ? ' checked' : '') + '> 내 개인 일정(오늘 이후)을 구글 캘린더에 올리기 <span class="small muted">— 같은 날짜·같은 제목이 이미 구글에 있으면 새로 만들지 않고 연결만 합니다</span></label>' +
               (this.err ? '<div class="alert" style="margin-top:10px;color:var(--danger)">' + esc(this.err) + '</div>' : '')
-            : '<div class="alert info" style="margin-top:12px">' + (isAdmin() ? '아직 구글 클라이언트 ID가 없습니다. 아래에 한 번만 입력하면 모든 구성원이 각자 자기 구글 계정으로 연동할 수 있습니다.' : '관리자가 구글 클라이언트 ID를 먼저 설정해야 사용할 수 있습니다.') + '</div>') +
-        (isAdmin() ? '<div style="margin-top:14px"><label class="fl" style="display:block;margin-bottom:4px">구글 OAuth 클라이언트 ID <span style="font-weight:500">(관리자 · 비밀값 아님)</span></label>' + ('<input id="gcCid" style="width:100%;margin-bottom:6px" value="' + esc(cid) + '" placeholder="1234567890-xxxx.apps.googleusercontent.com">') +
-          '<div class="small muted" style="line-height:1.6">구글 클라우드 콘솔(프로젝트 선택) → ① API 및 서비스 → 라이브러리 → <b>Google Calendar API</b> 사용 설정 ② OAuth 동의 화면 → 범위에 <code>calendar.events</code> 추가, 테스트 사용자에 구성원 구글 계정 추가 ③ 사용자 인증 정보 → OAuth 2.0 클라이언트 ID(웹) → 승인된 JavaScript 원본에 <code>' + esc(location.origin) + '</code> 추가 → 클라이언트 ID 복사</div></div>' : ''),
+            : '<div class="alert info" style="margin-top:12px">' + (isAdmin() ? '아직 구글 클라이언트 ID가 없습니다. 관리자 설정에서 한 번만 입력하면 모든 구성원이 각자 자기 구글 계정으로 연동할 수 있습니다.' : '관리자가 구글 클라이언트 ID를 먼저 설정해야 사용할 수 있습니다.') + '</div>') +
+        (isAdmin() && !cid ? '<div class="small muted" style="margin-top:10px">클라이언트 ID는 [관리자 설정 → 잠금 · 연동]에서 입력합니다.</div>' : ''),
       onMount: (el) => { const c = $('#gcPush', el); if(c) c.onchange = () => this.ls('push', c.checked ? '1' : '0'); },
       buttons: [ on ? { label:'연동 해제', cls:'ghost-danger', left:true, confirm:'이 기기에서 구글 캘린더 연동을 해제할까요? 구글과 이 달력의 일정은 지워지지 않습니다.', onClick: () => this.disconnect() } : null,
         { label:'닫기' },
-        isAdmin() ? { label:'ID 저장', onClick: (m) => { const v = $('#gcCid', m.el).value.trim(); if(v && !/\.apps\.googleusercontent\.com$/.test(v)){ toast('클라이언트 ID 형식이 아닙니다 (…apps.googleusercontent.com)', true); return false; } dbSet('settings', 'app', { gcalClientId: v }, true).then(() => toast('저장했습니다')); return false; } } : null,
+        isAdmin() && !cid ? { label:'관리자 설정 열기', cls:'primary', onClick: () => { MOD.admin.tab = 'system'; go('admin'); } } : null,
         cid ? { label: on ? '지금 동기화' : '구글 계정 연결', cls:'primary', onClick: () => { this.sync(true); } } : null ] });
   }
 };
@@ -4812,10 +4850,11 @@ const Dir = {
       body: '<div class="form">' + (ext ? fld('이름', '<input name="name" value="' + esc(c.name || '') + '">') + fld('소속 · 역할', '<input name="org" value="' + esc(c.org || '') + '" placeholder="예: 산학협력단 연구비 담당">') : '') +
         fld('전화', '<input name="phone" value="' + esc(c.phone || '') + '" placeholder="010-0000-0000">') + fld('이메일', '<input name="email" value="' + esc(c.email || (u ? u.email || '' : '')) + '">') +
         fld('자리 · 내선', '<input name="seat" value="' + esc(c.seat || '') + '" placeholder="예: 팔달관 233호 / 내선 1234">', true) + fld('비고', '<input name="note" value="' + esc(c.note || '') + '" placeholder="예: 화·목 오전 수업">', true) + '</div>',
-      buttons: [ id && S.directory[id] ? { label: ext ? '삭제' : '내용 지우기', cls:'ghost-danger', left:true, confirm: ext ? '이 연락처를 삭제할까요?' : '입력한 연락처 내용을 지울까요?', onClick: () => dbDel('directory', id) } : null, { label:'취소' },
+      buttons: [ id && S.directory[id] && (!ext || canDel('contacts', c)) ? { label: ext ? '삭제' : '내용 지우기', cls:'ghost-danger', left:true, confirm: ext ? '이 연락처를 삭제할까요?' : '입력한 연락처 내용을 지울까요?', onClick: () => dbDel('directory', id) } : null, { label:'취소' },
         { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el); if(ext && !f.name){ toast('이름을 입력하세요', true); return false; }
           const data = Object.assign({ kind:'contact', uid: ext ? '' : String(id).slice(2), updatedAt: Date.now(), updatedBy: ME.name }, f);
+          if(ext) data.createdUid = id ? (c.createdUid || '') : ME.uid;
           if(!ext) data.name = u ? u.name : ME.name;
           dbSet('directory', id || newId(), data);
         } } ] });
@@ -4829,12 +4868,12 @@ const Dir = {
                fld('로그인 ID · 수량', '<input name="account" value="' + esc(x.account || '') + '" placeholder="예: lab@ajou.ac.kr / 5 seats">', true)
              : fld('분류', '<select name="cat">' + DIR_LINK_CATS.map(c => opt(c, c, x.cat)).join('') + '</select>')) +
         fld('주소 (URL)', '<input name="url" value="' + esc(x.url || '') + '" placeholder="https://">', true) + fld('설명', '<textarea name="note" placeholder="' + (lic ? '설치 방법, 갱신 절차 등' : '무엇을 할 때 쓰는지') + '">' + esc(x.note || '') + '</textarea>', true) + '</div>',
-      buttons: [ id ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'삭제할까요?', onClick: () => dbDel('directory', id) } : null, { label:'취소' },
+      buttons: [ id && canDel('contacts', x) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'삭제할까요?', onClick: () => dbDel('directory', id) } : null, { label:'취소' },
         { label:'저장', cls:'primary', onClick: (m) => {
           const f = readForm(m.el); if(!f.title){ toast(lic ? '이름을 입력하세요' : '제목을 입력하세요', true); return false; }
           if(f.url && !safeUrl(f.url)){ toast('주소는 http:// 또는 https:// 로 시작해야 합니다', true); return false; }
           if(/비밀번호|password|pw\s*[:=]/i.test((f.account || '') + ' ' + (f.note || '')) && lic){ toast('비밀번호는 적지 마세요', true); return false; }
-          const data = Object.assign({}, id ? x : { createdAt: Date.now() }, f, { kind, uid: ME.uid, updatedAt: Date.now(), updatedBy: ME.name }); delete data.id;
+          const data = Object.assign({}, id ? x : { createdAt: Date.now() }, f, { kind, uid: id ? (x.uid || '') : ME.uid, updatedAt: Date.now(), updatedBy: ME.name }); delete data.id;
           dbSet('directory', id || newId(), data);
         } } ] });
   }
