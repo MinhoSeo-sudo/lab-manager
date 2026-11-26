@@ -639,7 +639,7 @@
 const FIREBASE_CONFIG = { apiKey: "AIzaSyD21dnh8GrazqmNvQPXLrOCOLqs4j9o4tg", authDomain: "aml-mag.firebaseapp.com", projectId: "aml-mag", storageBucket: "aml-mag.firebasestorage.app", messagingSenderId: "1051520639327", appId: "1:1051520639327:web:df6b9f48250082c66e56ea", measurementId: "G-XY3QST8EHJ" };
 /* ▲▲▲ ───────────────────────────────────────────────────────────────── ▲▲▲ */
 
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.4';
 const SDK_BASE = window.LABHUB_SDK_BASE || 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LS_MODE = 'labhub-mode';
 const LS_FBCFG = 'labhub-fbconfig';
@@ -1576,11 +1576,13 @@ const Notice = {
         draw(); el._nc = setInterval(() => { if(!el.isConnected){ clearInterval(el._nc); return; } if(document.activeElement !== $('#ncText', el)) draw(); }, 2500);
       },
       buttons: [ canDel('notices', S.notices[id]) ? { label:'삭제', cls:'ghost-danger', left:true, confirm:'이 공지를 삭제할까요? (댓글도 함께 삭제됩니다)', onClick: () => dbBatch([{ op:'del', coll:'notices', id }].concat(Notice.comments(id).map(c => ({ op:'del', coll:'noticeComments', id: c.id })))) } : null,
-                 canEdit('notices') ? { label:'수정', onClick: () => { setTimeout(() => Notice.edit(id), 0); } } : null,
+                 canEdit('notices') && n.uid !== ME.uid ? { label: n.pinned ? '📌 고정 해제' : '📌 상단 고정', onClick: () => { dbUpdate('notices', id, { pinned: !n.pinned }).then(() => toast(n.pinned ? '상단 고정을 해제했습니다' : '상단에 고정했습니다')); } } : null,
+                 canEdit('notices') && n.uid === ME.uid ? { label:'수정', onClick: () => { setTimeout(() => Notice.edit(id), 0); } } : null,
                  { label:'닫기', cls:'primary' } ] });
   },
   edit(id){
     const n = id ? S.notices[id] : { title:'', body:'', pinned:false };
+    if(id && (S.notices[id] || {}).uid !== ME.uid){ toast('공지는 작성자만 수정할 수 있습니다', true); return; }
     openModal({ title: id ? '공지 수정' : '새 공지', wide:true,
       body: '<div class="form">' + fld('제목', '<input name="title" value="' + esc(n.title) + '">', true) +
         fld('내용', '<textarea name="body" style="min-height:220px">' + esc(n.body) + '</textarea>', true) +
@@ -4108,7 +4110,9 @@ service cloud.firestore {
       allow read: if canView('notices');
       allow create: if canEdit('notices');
       allow delete: if canDel('notices');
-      allow update: if canEdit('notices') || (canView('notices') && onlyChanged(['readBy']));
+      // 글 수정은 작성자만. 편집 권한자는 상단 고정만 바꿀 수 있고, 읽음 표시는 누구나
+      allow update: if (canEdit('notices') && ((resource.data.get('uid', '') == request.auth.uid && mine()) || onlyChanged(['pinned', 'readBy'])))
+        || (canView('notices') && onlyChanged(['readBy']));
     }
     // 공지 댓글: 누구나 작성, 본인 댓글만 수정·삭제 (공지 편집 권한자는 모두 삭제 가능)
     match /noticeComments/{id} {
@@ -4158,7 +4162,8 @@ service cloud.firestore {
     match /suggestions/{id} {
       allow read: if canView('suggest');
       allow create: if canEdit('suggest') || (canAct() && canView('suggest') && request.resource.data.status == '접수' && mine());
-      allow update: if canEdit('suggest') || (canView('suggest') && onlyChanged(['likes']))
+      // 글 수정은 작성자만(접수 상태일 때). 편집 권한자는 답변·상태만 바꿀 수 있음
+      allow update: if (canEdit('suggest') && onlyChanged(['status', 'reply', 'replyBy', 'replyAt', 'likes'])) || (canView('suggest') && onlyChanged(['likes']))
         || (canAct() && resource.data.get('uid', '') == request.auth.uid && resource.data.status == '접수'
           && request.resource.data.status == '접수' && mine());
       allow delete: if canDel('suggest') || (canAct() && resource.data.get('uid', '') == request.auth.uid && resource.data.status == '접수');
@@ -4300,6 +4305,7 @@ const Suggest = {
   mine(x){ return !x.anon && x.uid === ME.uid; },
   edit(id){
     const x = id ? S.suggestions[id] : { title:'', body:'', cat:'프로그램 개선', anon:false };
+    if(id && !this.mine(x)){ toast('건의는 작성자만 수정할 수 있습니다', true); return; }
     openModal({ title: id ? '건의 수정' : '건의하기', wide:true, sticky:true,
       body: '<div class="form">' + fld('제목', '<input name="title" value="' + esc(x.title) + '">', true) +
         fld('분류', '<select name="cat">' + SG_CATS.map(c => opt(c, c, x.cat)).join('') + '</select>') +
